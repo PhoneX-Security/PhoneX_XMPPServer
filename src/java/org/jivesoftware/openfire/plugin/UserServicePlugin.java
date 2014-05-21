@@ -47,6 +47,7 @@ import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveGlobals;
+import org.jivesoftware.util.Log;
 import org.jivesoftware.util.PropertyEventDispatcher;
 import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.StringUtils;
@@ -250,25 +251,31 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
                 }
             }
             
-            // If null, roster item does not exist, thus create it.
-            if (ri==null){
-                 ri = r.createRosterItem(j, tri.name, groups, false, true);
-            } else {
-                // Already exists, updating.
-                ri.setGroups(groups);
-                ri.setNickname(tri.name);
+            // Tolerance to particular problems in the contact list.
+            try {
+                // If null, roster item does not exist, thus create it.
+                if (ri==null){
+                     ri = r.createRosterItem(j, tri.name, groups, false, true);
+                } else {
+                    // Already exists, updating.
+                    ri.setGroups(groups);
+                    ri.setNickname(tri.name);
+                }
+
+                // In both cases.
+                ri.setSubStatus(RosterItem.SubType.getTypeFromInt(tri.subscription));
+                if (tri.askStatus!=null){
+                    ri.setAskStatus(RosterItem.AskType.getTypeFromInt(tri.askStatus));
+                }
+                if (tri.recvStatus!=null){
+                    ri.setRecvStatus(RosterItem.RecvType.getTypeFromInt(tri.recvStatus));
+                }
+
+                r.updateRosterItem(ri);
+            } catch(Exception e){
+                // Be tolerant to 1 user failing
+                Log.warn("Problem with adding a user to the roster", e);
             }
-            
-            // In both cases.
-            ri.setSubStatus(RosterItem.SubType.getTypeFromInt(tri.subscription));
-            if (tri.askStatus!=null){
-                ri.setAskStatus(RosterItem.AskType.getTypeFromInt(tri.askStatus));
-            }
-            if (tri.recvStatus!=null){
-                ri.setRecvStatus(RosterItem.RecvType.getTypeFromInt(tri.recvStatus));
-            }
-            
-            r.updateRosterItem(ri);
         }
         
         // Delete non-existent roster items from the roster.
