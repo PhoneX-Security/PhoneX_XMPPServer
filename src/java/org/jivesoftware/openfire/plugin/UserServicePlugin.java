@@ -234,7 +234,13 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
         
         for(TransferRosterItem tri : rosterList){
             JID j = new JID(tri.jid);
-            RosterItem ri = r.getRosterItem(j);
+            RosterItem ri = null;
+            try {
+                ri = r.getRosterItem(j);
+            }
+            catch (UserNotFoundException e) {
+                //Roster item does not exist. Try to add it.
+            }
             
             List<String> groups = new ArrayList<String>();
             if (tri.groups != null) {

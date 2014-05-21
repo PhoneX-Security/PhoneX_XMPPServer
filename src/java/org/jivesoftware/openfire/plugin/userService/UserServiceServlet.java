@@ -113,7 +113,7 @@ public class UserServiceServlet extends HttpServlet {
             return;
         }
         
-        String username = request.getParameter("username");
+        String username = java.net.URLDecoder.decode(request.getParameter("username"), "UTF-8");
         String password = request.getParameter("password");
         String name = request.getParameter("name");
         String email = request.getParameter("email");
@@ -204,6 +204,7 @@ public class UserServiceServlet extends HttpServlet {
                     plugin.syncRoster(username, rosterList);
                     replyMessage("ok",response, out);
                 } catch(Exception e){
+                    Log.warn("Exception for user ["+username+"]", e);
                     replyError("IllegalArgumentException",response, out);
                 }
             }
