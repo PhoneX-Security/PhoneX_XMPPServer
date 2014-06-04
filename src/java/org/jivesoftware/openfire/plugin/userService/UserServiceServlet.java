@@ -126,6 +126,9 @@ public class UserServiceServlet extends HttpServlet {
         // In case of roster-sync, the whole user roster is passed in the request
         // using BASE64 encoding of the JSON-encoded list of the contacts.
         String roster = request.getParameter("roster");
+        if (roster!=null){
+            roster = java.net.URLDecoder.decode(roster, "UTF-8");
+        }
         
         //No defaults, add, delete, update only
         //type = type == null ? "image" : type;
@@ -197,14 +200,15 @@ public class UserServiceServlet extends HttpServlet {
             }
             else if ("sync_roster".equals(type)){
                 List<TransferRosterItem> rosterList = null;
+                String rosterJson = null;
                 try {
-                    String rosterJson = new String(Base64.decode(roster), "UTF-8");
+                    rosterJson = new String(Base64.decode(roster), "UTF-8");
                     ObjectMapper mapper = new ObjectMapper();
                     rosterList = mapper.readValue(rosterJson, new TypeReference<List<TransferRosterItem>>(){});
                     plugin.syncRoster(username, rosterList);
                     replyMessage("ok",response, out);
                 } catch(Exception e){
-                    Log.warn("Exception for user ["+username+"]", e);
+                    Log.warn("Exception for user ["+username+"] JSON=", e);
                     replyError("IllegalArgumentException",response, out);
                 }
             }

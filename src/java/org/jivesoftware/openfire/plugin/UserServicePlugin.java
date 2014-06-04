@@ -20,6 +20,7 @@
 package org.jivesoftware.openfire.plugin;
 
 import java.io.File;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -29,6 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
+import org.dom4j.Element;
+import org.dom4j.io.SAXReader;
+import org.jivesoftware.openfire.PresenceManager;
 
 import org.jivesoftware.openfire.SharedGroupException;
 import org.jivesoftware.openfire.XMPPServer;
@@ -39,6 +43,8 @@ import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
 import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
 import org.jivesoftware.openfire.lockout.LockOutManager;
+import org.jivesoftware.openfire.privacy.PrivacyList;
+import org.jivesoftware.openfire.privacy.PrivacyListManager;
 import org.jivesoftware.openfire.roster.Roster;
 import org.jivesoftware.openfire.roster.RosterItem;
 import org.jivesoftware.openfire.roster.RosterManager;
@@ -62,15 +68,24 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
     private UserManager userManager;
     private RosterManager rosterManager;
     private XMPPServer server;
+    private PresenceManager presenceManager;
 
     private String secret;
     private boolean enabled;
     private Collection<String> allowedIPs;
+    
+    private Element standardPrivacyListElement;
+    private static final String standardPLName="phonex_roster_only";
+    private static final String standardPrivacyListString = 
+              "<list xmlns='jabber:iq:privacy' name='"+standardPLName+"'>"
+            + "     <item type='subscription' value='none' action='deny' order='100'></item>"
+            + "</list>";
 
     public void initializePlugin(PluginManager manager, File pluginDirectory) {
         server = XMPPServer.getInstance();
         userManager = server.getUserManager();
         rosterManager = server.getRosterManager();
+        presenceManager = server.getPresenceManager();
 
         secret = JiveGlobals.getProperty("plugin.userservice.secret", "");
         // If no secret key has been assigned to the user service yet, assign a random one.
@@ -87,6 +102,16 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
 
         // Listen to system property events
         PropertyEventDispatcher.addListener(this);
+        
+        // Prepare PrivacyList as an element for privacylist construction further in code.
+        try {
+            SAXReader xmlReader = new SAXReader();
+            xmlReader.setEncoding("UTF-8");
+            standardPrivacyListElement = xmlReader.read(new StringReader(standardPrivacyListString)).getRootElement();
+            Log.info("PrivacyList constructed");
+        } catch (Exception e) {
+            Log.error(e.getMessage(), e);
+        }
     }
 
     public void destroyPlugin() {
@@ -224,7 +249,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
             throws UserNotFoundException, UserAlreadyExistsException, SharedGroupException
     {
         
-        getUser(username);
+        final User usr = getUser(username);
         Roster r = rosterManager.getRoster(username);
         
         Set<String> jidInRosterList = new HashSet<String>();
@@ -272,6 +297,17 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
                 }
 
                 r.updateRosterItem(ri);
+                
+                // Protect destination user.
+                // TODO: optimize this. It sufficess to create the list when user
+                // is being created.
+                try {
+                    if (server.isLocal(j)){
+                        createDefaultPrivacyList(j.getNode());
+                    }
+                } catch(Exception ex){
+                    Log.error("Problem with creating a default privacy list", ex);
+                }
             } catch(Exception e){
                 // Be tolerant to 1 user failing
                 Log.warn("Problem with adding a user to the roster", e);
@@ -288,7 +324,35 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
                 try {
                     r.deleteRosterItem(j, true);
                 } catch(Exception ex){
-                    ;
+                    Log.warn("Problem with removing roster entry", ex);
+                }
+            }
+        }
+        
+        // Workaround for problem with Presence probe.
+        // Protect current user.
+        createDefaultPrivacyList(username);
+    }
+    
+    /**
+     * Measure to ignore all not from/to local users.
+     * @param username 
+     */
+    private void createDefaultPrivacyList(String username){
+        PrivacyListManager privListManager = PrivacyListManager.getInstance();
+        PrivacyList list = privListManager.getDefaultPrivacyList(username);
+        if (list==null || standardPLName.equals(list.getName())==false){
+            // Create a new privacy list for the caller, store to the database
+            // and updates a cache.
+            synchronized(username.intern()){
+                try {
+                    PrivacyList nlist = privListManager.createPrivacyList(username, standardPLName, standardPrivacyListElement);
+                    nlist.setDefaultList(true);
+                    
+                    // Update as master.
+                    privListManager.changeDefaultList(username, nlist, list);
+                } catch(Exception e){
+                    Log.warn("Exception in setting a privacy list", e);
                 }
             }
         }
