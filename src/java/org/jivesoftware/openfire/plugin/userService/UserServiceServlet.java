@@ -163,6 +163,7 @@ public class UserServiceServlet extends HttpServlet {
             username = username.trim().toLowerCase();
             username = JID.escapeNode(username);
             username = Stringprep.nodeprep(username);
+Log.info(String.format("REQ: %s, usrname=%s", type, username));
             if ("add".equals(type)) {
                 plugin.createUser(username, password, name, email, groupNames);
                 replyMessage("ok",response, out);

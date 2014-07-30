@@ -58,6 +58,7 @@ import org.jivesoftware.util.PropertyEventDispatcher;
 import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.StringUtils;
 import org.xmpp.packet.JID;
+import org.xmpp.packet.Presence;
 
 /**
  * Plugin that allows the administration of users via HTTP requests.
@@ -75,11 +76,20 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
     private Collection<String> allowedIPs;
     
     private Element standardPrivacyListElement;
-    private static final String standardPLName="phonex_roster_only";
+    private static final String standardPLName="phonex_roster";
+    
+    // Warning! This privacy list block self publishing since I don't have myself in my 
+    // roster, presence update among my devices is blocked...
     private static final String standardPrivacyListString = 
               "<list xmlns='jabber:iq:privacy' name='"+standardPLName+"'>"
-            + "     <item type='subscription' value='none' action='deny' order='100'></item>"
+            + "     <item type='subscription' value='none' action='deny' order='1'><message/><presence-in/><presence-out/></item>"
             + "</list>";
+    
+           /* + "     <item type='subscription' value='both' action='allow' order='1'></item>"
+            + "     <item type='subscription' value='from' action='allow' order='2'></item>"
+            + "     <item type='subscription' value='to' action='allow' order='3'><message/><presence-in/></item>"
+            + "     <item action='deny' order='5'></item>"*/
+            
 
     public void initializePlugin(PluginManager manager, File pluginDirectory) {
         server = XMPPServer.getInstance();
@@ -250,6 +260,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
     {
         
         final User usr = getUser(username);
+        final JID prober = server.createJID(username, null);
         Roster r = rosterManager.getRoster(username);
         
         Set<String> jidInRosterList = new HashSet<String>();
@@ -258,6 +269,9 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
             jidInRosterList.add(j.toBareJID().toString());
         }
         
+        Set<JID> newRosterEntries = new HashSet<JID>();
+        
+        // Update roster according to sync data.
         for(TransferRosterItem tri : rosterList){
             JID j = new JID(tri.jid);
             RosterItem ri = null;
@@ -280,15 +294,22 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
             try {
                 // If null, roster item does not exist, thus create it.
                 if (ri==null){
-                     ri = r.createRosterItem(j, tri.name, groups, false, true);
+                    ri = r.createRosterItem(j, tri.name, groups, false, true);
+                    newRosterEntries.add(j);
                 } else {
                     // Already exists, updating.
                     ri.setGroups(groups);
                     ri.setNickname(tri.name);
                 }
+                
+                // If sub status differs, add to set.
+                RosterItem.SubType subType = RosterItem.SubType.getTypeFromInt(tri.subscription);
+                if (subType.equals(ri.getSubStatus())==false){
+                    newRosterEntries.add(j);
+                }
 
                 // In both cases.
-                ri.setSubStatus(RosterItem.SubType.getTypeFromInt(tri.subscription));
+                ri.setSubStatus(subType);
                 if (tri.askStatus!=null){
                     ri.setAskStatus(RosterItem.AskType.getTypeFromInt(tri.askStatus));
                 }
@@ -297,6 +318,8 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
                 }
 
                 r.updateRosterItem(ri);
+                Log.info(String.format("updating roster for u=%s, dest=%s, sub=%s", 
+                    username, tri.name, tri.subscription));                
                 
                 // Protect destination user.
                 // TODO: optimize this. It sufficess to create the list when user
@@ -320,18 +343,186 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
             JID j = ri.getJid();
             String jid = j.asBareJID().toString();
             if (jidInRosterList.contains(jid)==false){
-                // Delete from the roster if not present in the sync list.
-                try {
-                    r.deleteRosterItem(j, true);
-                } catch(Exception ex){
-                    Log.warn("Problem with removing roster entry", ex);
-                }
+                unsubscribeRosterItem(prober, r, j);
             }
         }
         
-        // Workaround for problem with Presence probe.
+        // Update new roster entries added -probe presence and broadcast data.
+        Log.info(String.format("sync, new roster entries, size=%s, prober=%s", newRosterEntries.size(), username));
+        if (!newRosterEntries.isEmpty()){
+            refreshPresenceInfo(prober, newRosterEntries);
+        }
+        
         // Protect current user.
         createDefaultPrivacyList(username);
+    }
+    
+    /**
+     * Unsubscribes from remote presence.
+     * @param master
+     * @param r
+     * @param item2remove 
+     */
+    private void unsubscribeRosterItem(JID master, Roster r, JID item2remove){
+        try {
+            final String itemStr = item2remove.getNode();
+            final boolean isLocal = server.isLocal(item2remove);
+            
+            RosterItem itemToRemove = r.getRosterItem(item2remove);
+            if (itemToRemove != null && !itemToRemove.getSharedGroups().isEmpty()) {
+                throw new SharedGroupException("Cannot remove contact that belongs to a shared group");
+            }
+            
+            if (itemToRemove==null){
+                Log.warn("item to remove is null: " + item2remove.getNode());
+                return;
+            }
+            
+            // Router presence state (unavailable) to the remote user.
+            Presence presence = new Presence();
+            presence.setFrom(master);
+            presence.setTo(itemToRemove.getJid());
+            presence.setType(Presence.Type.unavailable);
+            server.getPacketRouter().route(presence);
+            
+            // Change roster record.
+            RosterItem.SubType subType = itemToRemove.getSubStatus();
+            itemToRemove.setSubStatus(itemToRemove.SUB_NONE);
+            r.updateRosterItem(itemToRemove);
+            
+            // Cancel any existing presence subscription between the user and the contact
+            /*if (subType == RosterItem.SUB_TO || subType == RosterItem.SUB_BOTH) {
+                Presence presence = new Presence();
+                presence.setFrom(server.createJID(master.getNode(), null));
+                presence.setTo(item2remove);
+                presence.setType(Presence.Type.unsubscribe);
+                server.getPacketRouter().route(presence);
+            }*/
+            
+            // cancel any existing presence subscription between the contact and the user
+            /*if (subType == RosterItem.SUB_FROM || subType == RosterItem.SUB_BOTH) {
+                Presence presence = new Presence();
+                presence.setFrom(server.createJID(master.getNode(), null));
+                presence.setTo(itemToRemove.getJid());
+                presence.setType(Presence.Type.unsubscribed);
+                server.getPacketRouter().route(presence);
+            }*/
+            
+        } catch(Exception ex){
+            Log.warn("Problem with removing roster entry", ex);
+        }
+    }
+    
+    /**
+     * Deletes item2remove from the master's r roster.
+     * Preserves item2remove's roster state.
+     * 
+     * @param master
+     * @param r
+     * @param item2remove 
+     */
+    private void deleteRosterItem(JID master, Roster r, JID item2remove){
+        // Delete from the roster if not present in the sync list.
+        // The following code fragment is a bit problematic since deleteRosterItem
+        // deletes also r from the j's roster (or sets status to NONE).
+        // This is not desired since if the user is re-added on the 
+        // username side, the j side still has NONE subscription even 
+        // though j has username in its contact list.
+        try {
+            final String itemStr = item2remove.getNode();
+            final boolean isLocal = server.isLocal(item2remove);
+            
+            // At first try to backup item's roster state against master,
+            // in order to be recoverede later.
+            RosterItem origItem = null;
+            Roster recipientRoster = null;
+            if (isLocal){
+                try {
+                    recipientRoster = userManager.getUser(itemStr).getRoster();
+                    origItem = recipientRoster.getRosterItem(master);
+                }
+                catch (UserNotFoundException e) {
+                    // Do nothing
+                    Log.info("User not found: " + item2remove.getNode());
+                }
+            }
+            
+            Log.info(String.format("deleting roster for u=%s, dest=%s, local=%s, roster=%s, item=%s, subs=%s", 
+                    master, item2remove, isLocal, recipientRoster, origItem, origItem==null ? "-1" : origItem.getSubStatus()));
+            
+            // Delete item from the roster.
+            // This call does a lot of things. It removes subscriptions, sends
+            // unsubscribe, unsubscribed messages and many others.
+            // It also modifies item's roster.
+            r.deleteRosterItem(item2remove, true);
+            
+            // Recover item's roster item for master, it there is any.
+            // Warning: This method does not work! Openfire processes some parts
+            // of the delete request asynchronically thus this code is executed 
+            // before update to NONE happens on the item's side.
+            if (isLocal && origItem!=null && recipientRoster!=null){
+                try {
+                    RosterItem updatedItem = recipientRoster.getRosterItem(master);
+                    if (updatedItem!=null){
+                        updatedItem.setAskStatus(origItem.getAskStatus());
+                        updatedItem.setRecvStatus(origItem.getRecvStatus());
+                        updatedItem.setSubStatus(origItem.getSubStatus());
+                        recipientRoster.updateRosterItem(updatedItem);
+                    } else {
+                        Log.info("Roster item was deleted, for " + item2remove.getNode());
+                    }
+                    
+                    
+                }catch(Exception ex){
+                    Log.warn("Exception in recovering item's roster.", ex);
+                }
+            }
+        } catch(Exception ex){
+            Log.warn("Problem with removing roster entry", ex);
+        }
+    }
+    
+    /**
+     * Probe each other presence states for the master and all newly added roster
+     * entries. Goal: update actual presence data ASAP.
+     * @param master
+     * @param newRosterEntries 
+     */
+    private void refreshPresenceInfo(JID master, Collection<JID> newRosterEntries){
+        try {
+            for(JID probee : newRosterEntries){
+                final String probeeStr = probee.getNode();
+                final boolean isLocal = server.isLocal(probee);
+
+                Log.info(String.format("probee: %s probeeStr: %s, prober: %s proberStr %s local %s", 
+                    probee, probeeStr, master, master.toBareJID(), isLocal));
+
+                // Update for user owning the contact list.
+                presenceManager.probePresence(master, probee);
+
+                // Update for the remote user.
+                presenceManager.probePresence(probee, master);
+            }
+        } catch(Exception ex){
+            Log.warn("Exception in probing presence state", ex);
+        }
+    }
+    
+    /**
+     * Non-exception wrapper for canProbePresence call.
+     * @param prober
+     * @param probee
+     * @return 
+     */
+    private boolean canProbePresence(JID prober, String probee){
+        boolean canProbe=false;
+        try {
+            canProbe = presenceManager.canProbePresence(prober, probee);
+        } catch(Exception ex){
+            
+        }
+        
+        return canProbe;
     }
     
     /**
@@ -341,19 +532,22 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
     private void createDefaultPrivacyList(String username){
         PrivacyListManager privListManager = PrivacyListManager.getInstance();
         PrivacyList list = privListManager.getDefaultPrivacyList(username);
-        if (list==null || standardPLName.equals(list.getName())==false){
-            // Create a new privacy list for the caller, store to the database
-            // and updates a cache.
-            synchronized(username.intern()){
-                try {
-                    PrivacyList nlist = privListManager.createPrivacyList(username, standardPLName, standardPrivacyListElement);
-                    nlist.setDefaultList(true);
-                    
-                    // Update as master.
-                    privListManager.changeDefaultList(username, nlist, list);
-                } catch(Exception e){
-                    Log.warn("Exception in setting a privacy list", e);
-                }
+        if (list!=null && standardPLName.equals(list.getName())){
+            return;
+        }
+        
+        // Create a new privacy list for the caller, store to the database
+        // and updates a cache.
+        synchronized(username.intern()){
+            try {
+                PrivacyList nlist = privListManager.createPrivacyList(username, standardPLName, standardPrivacyListElement);
+                nlist.setDefaultList(true);
+
+                // Update as master.
+                privListManager.changeDefaultList(username, nlist, list);
+                Log.info("Generated privacy list for: " + username);
+            } catch(Exception e){
+                Log.warn("Exception in setting a privacy list", e);
             }
         }
     }
