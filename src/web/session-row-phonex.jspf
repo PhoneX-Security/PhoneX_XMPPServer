@@ -37,7 +37,7 @@
     <td width="1%" nowrap><%= count %></td>
     <td width="10%" nowrap>
         <%  String name = sess.getAddress().getNode(); %>
-            <a href="session-details.jsp?jid=<%= URLEncoder.encode(sess.getAddress().toString(), "UTF-8") %>" title="<fmt:message key='session.row.cliked' />"
+            <a href="session-details-phonex.jsp?jid=<%= URLEncoder.encode(sess.getAddress().toString(), "UTF-8") %>" title="<fmt:message key='session.row.cliked' />"
             ><%= ((!sessionManager.isAnonymousRoute(sess.getUsername())) ? JID.unescapeNode(name): "<i>"+LocaleUtils.getLocalizedString("session.details.anonymous")+"</i>") %></a>
     </td>
     <td width="15%" nowrap>
@@ -157,11 +157,6 @@
                 <div id="my_box_<%= sessId %>" style="display: none;">  
                     <%= StringUtils.escapeHTMLTags(unpackedPresence2) %> 
                 </div>  
-
-                <!-- HTML comment toString():
-                    <%= StringUtils.escapeHTMLTags(unpackedPresence2) %> 
-                -->
-                
             <%  } else { %>
                 <fmt:message key="session.details.online" />
             <%  } %> 
