@@ -52,7 +52,7 @@ cd unzipped
 
 # replace new files in the plugin
 echo -e "$CG[+]$CN Going to update plugin classes in sub-jar"
-zip -rv ../../plugin/lib/plugin-userservice.jar org/
+zip -rv ../../plugin/lib/plugin-userservice.jar org/ net/
 RT=$?
 if (( $RT != 0 )); then 
     echo -e "$CR[!]$CN Error: Cannot update subJar with new class files!"

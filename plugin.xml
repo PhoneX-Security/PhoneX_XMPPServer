@@ -16,6 +16,14 @@
                      description="Click to manage the service that allows remote admin of users" />
             </sidebar>
         </tab>
+        <tab id="tab-session">
+            <!-- Active Sessions -->
+            <sidebar id="sidebar-session" name="${sidebar.active-sessions}">
+                <item id="session-summary-phonex" name="PhoneX sessions"
+                  url="session-summary-phonex.jsp"
+                  description="Shows current client sessions w.r.t. PhoneX"/>
+            </sidebar>
+        </tab>
     </adminconsole>
 
 </plugin>

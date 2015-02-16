@@ -249,7 +249,7 @@ Log.info(String.format("REQ: %s, usrname=%s", type, username));
         }
         catch (Exception e) {
             replyError(e.toString(),response, out);
-        }
+        } 
     }
 
     private void replyMessage(String message,HttpServletResponse response, PrintWriter out){
