@@ -38,6 +38,52 @@
     static final int[] REFRESHES = {0, 10, 30, 60, 90};
     static final String[] REFRESHES_LABELS = {NONE,"10","30","60","90"};
 %>
+
+<script type="text/javascript">  
+    // Scriptaculous Effect Choices(Appearing):   
+    //      Appear  
+    //      BlindDown  
+    //      Fold  
+    //      Highlight  
+    //      Shake  
+    //      SlideDown  
+    // Scriptaculous Effect(For Disappearing):   
+    //      BlindUp  
+    //      DropOut  
+    //      Fade  
+    //      Pulsate  
+    //      Shrink  
+    //      SlideUp  
+    //      Squish  
+    //      Puff  
+    //      SwitchOff  
+  
+    function toggle_box(id) // This Function Hides/Shows an element  
+    {  
+        element = document.getElementById(id); 
+        try {
+            if(element.style.display === "none"){ // The Element is currently Hidden  
+                $(element).show();
+                //new Effect.Appear(element, {duration:0.5}); // Show Element(Must be a Appearing effect listed above)  
+            } else { // The Element is currently Visible  
+                //new Effect.SwitchOff(element, {duration:0.5}); // Hide Element(Must be an Disappearing effect listed above)  
+                $(element).hide();
+            }
+        }
+        catch(err) {
+            ;
+        }
+    }  
+  
+    function replace_box(id_to_hide, id_to_show) // This function hides the first element and shows the second(which should already be hidden)  
+    {  
+        element_to_hide = document.getElementById(id_to_hide)  
+        element_to_show = document.getElementById(id_to_show)  
+        new Effect.Shrink(element_to_hide, {duration:0.5}); // Hide Element(Must be a Disappearing effect listed above)  
+        new Effect.Appear(element_to_show, {duration:0.5}); // Show Element(Must be an Appearing effect listed above)  
+    }  
+</script>
+
 <jsp:useBean id="webManager" class="org.jivesoftware.util.WebManager"  />
 <% webManager.init(request, response, session, application, out ); %>
 

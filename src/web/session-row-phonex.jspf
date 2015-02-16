@@ -8,8 +8,8 @@
                  org.jivesoftware.util.LocaleUtils,
                  org.jivesoftware.util.StringUtils,
                  org.xmpp.packet.JID,
+                 org.jivesoftware.openfire.plugin.UserServicePlugin,
                  net.phonex.pub.proto.PushNotifications,
-                 javax.xml.bind.DatatypeConverter,
                  org.xmpp.packet.Presence"%>
  <%@ page import="java.net.URLEncoder"%>
 
@@ -138,25 +138,29 @@
             ></td>
         <td width="46%">
            <%  
-            String unpackedPresence = null;
+            String unpackedPresence1 = null;
+            String unpackedPresence2 = null;
+            String sessId = UserServicePlugin.getSessionId(sess);
             if (_stat != null) { 
-                try {
-                    // Presence push notification for this contact.
-                    // Using Google Protocol Buffers to serialize complex structures
-                    // into presence status text information.
-                    PushNotifications.PresencePush presencePush = null;
-                    final byte[] bpush = DatatypeConverter.parseBase64Binary(_stat);
-                    presencePush = PushNotifications.PresencePush.parseFrom(bpush);
-                    unpackedPresence = presencePush.toString();
-                } catch(Exception ex){
-                    unpackedPresence = null;
+                PushNotifications.PresencePush pp = UserServicePlugin.readPresencePush(_stat);
+                if (pp != null){
+                    unpackedPresence1 = UserServicePlugin.formatPushPresence(pp);
+                    unpackedPresence2 = pp.toString();
                 }
             } 
 
-            if (unpackedPresence != null){
+            if (unpackedPresence1 != null){
            %>
-           
-                <%= StringUtils.escapeHTMLTags(unpackedPresence) %>
+                
+                <%= StringUtils.escapeHTMLTags(unpackedPresence1) %>
+                <a href="javascript:toggle_box('my_box_<%= sessId %>');">More</a>
+                <div id="my_box_<%= sessId %>" style="display: none;">  
+                    <%= StringUtils.escapeHTMLTags(unpackedPresence2) %> 
+                </div>  
+
+                <!-- HTML comment toString():
+                    <%= StringUtils.escapeHTMLTags(unpackedPresence2) %> 
+                -->
                 
             <%  } else { %>
                 <fmt:message key="session.details.online" />

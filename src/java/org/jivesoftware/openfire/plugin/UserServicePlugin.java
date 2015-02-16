@@ -19,22 +19,33 @@
 
 package org.jivesoftware.openfire.plugin;
 
+import com.google.protobuf.UnknownFieldSet;
 import java.io.File;
 import java.io.StringReader;
+import java.net.URLEncoder;
+import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
+import javax.xml.bind.DatatypeConverter;
+import net.phonex.pub.proto.PushNotifications;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 import org.jivesoftware.openfire.PresenceManager;
 
 import org.jivesoftware.openfire.SharedGroupException;
+import org.jivesoftware.openfire.StreamID;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.container.Plugin;
 import org.jivesoftware.openfire.container.PluginManager;
@@ -48,6 +59,7 @@ import org.jivesoftware.openfire.privacy.PrivacyListManager;
 import org.jivesoftware.openfire.roster.Roster;
 import org.jivesoftware.openfire.roster.RosterItem;
 import org.jivesoftware.openfire.roster.RosterManager;
+import org.jivesoftware.openfire.session.Session;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserManager;
@@ -802,5 +814,131 @@ public class UserServicePlugin implements Plugin, PropertyEventListener {
 
     public void xmlPropertyDeleted(String property, Map<String, Object> params) {
         // Do nothing
+    }
+    
+    public static String getSessionId(Session sess){
+        Random rnd = new Random();
+        String idRes = Integer.toString(rnd.nextInt(8192));
+        
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("sessionName: ").append(sess.getAddress().toString());
+            
+            StreamID streamID = sess.getStreamID();
+            if (streamID != null){
+                sb.append(":stream:").append(streamID.getID());
+            }
+            
+            MessageDigest md5 = MessageDigest.getInstance("MD5");
+            idRes = DatatypeConverter.printBase64Binary(md5.digest(sb.toString().getBytes("UTF-8")));
+            idRes = idRes.replaceAll("[^a-zA-Z0-9]", "");
+            idRes = URLEncoder.encode(idRes.substring(0, 12), "UTF-8");
+        } catch(Exception e){
+            
+        }
+        
+        return idRes.trim().toLowerCase();
+    }
+    
+    public static PushNotifications.PresencePush readPresencePush(String base64encodedState){
+        PushNotifications.PresencePush pp = null;
+        if (base64encodedState == null || base64encodedState.isEmpty()){
+            return null;
+        }
+        
+        try {
+            // Presence push notification for this contact.
+            // Using Google Protocol Buffers to serialize complex structures
+            // into presence status text information.    
+            final byte[] bpush = DatatypeConverter.parseBase64Binary(base64encodedState);
+            pp = PushNotifications.PresencePush.parseFrom(bpush);
+        } catch(Exception e){
+            pp = null;
+        }
+        
+        return pp;
+    }
+    
+    public static String formatPushPresence(PushNotifications.PresencePush pp){
+        String unpackedPresence = null;
+        try {
+            // Presence push notification for this contact.
+            // Using Google Protocol Buffers to serialize complex structures
+            // into presence status text information.
+            StringBuilder sb = new StringBuilder();
+            
+            // Status.
+            if (pp.hasStatus()){
+                sb.append("status: ").append(pp.getStatus().toString()).append("\n");
+            }
+            
+            // Status text
+            if (pp.hasStatusText()){
+                sb.append("statusText: ").append(pp.getStatusText()).append("\n");
+            }
+            
+            // SIP registered?
+            if (pp.hasSipRegistered()){
+                sb.append("sipRegistered: ").append(pp.getSipRegistered()).append("\n");
+            }
+            
+            // Cert created
+            if (pp.hasCertNotBefore()){
+                long time = pp.getCertNotBefore();
+                SimpleDateFormat dformat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ", Locale.getDefault());
+                String fmtedDate = dformat.format(new Date(time));
+                sb.append("certNotBefore: ").append(fmtedDate).append("\ncertUtcMilli:").append(time).append("\n");
+            }
+            
+            // Cert hash
+            if (pp.hasCertHashShort()){
+                sb.append("certHashShort: ").append(pp.getCertHashShort()).append("\n");
+            }
+            
+            // Cert hash full
+            if (pp.hasCertHashFull()){
+                sb.append("certHashFull: ").append(pp.getCertHashFull()).append("\n");
+            }
+            
+            // Cap skip
+            if (pp.hasCapabilitiesSkip()){
+                sb.append("capSkip: ").append(pp.getCapabilitiesSkip()).append("\n");
+            }
+            
+            // Caps
+            final int capsCnt = pp.getCapabilitiesCount();
+            if (capsCnt > 0){
+                sb.append("caps: ");
+                ArrayList<String> capList = new ArrayList<String>(pp.getCapabilitiesList());
+                java.util.Collections.sort(capList);
+                
+                for(int i = 0; i < capsCnt; i++){
+                    sb.append(capList.get(i));
+                    if (i+1 != capsCnt){
+                        sb.append("; ");
+                    }
+                }
+                sb.append("\n");
+            }
+            
+            // Version
+            if (pp.hasVersion()){
+                sb.append("version: ").append(pp.getVersion()).append("\n");
+            }
+            
+            UnknownFieldSet unknownFields = pp.getUnknownFields();
+            if (unknownFields != null && unknownFields.isInitialized()){
+                String uFieldsStr = unknownFields.toString();
+                if (uFieldsStr != null && !uFieldsStr.isEmpty()){
+                    sb.append("Unknown fields: ").append(unknownFields.toString()).append("\n");
+                }
+            }
+                        
+            unpackedPresence = sb.toString();
+        } catch(Exception ex){
+            unpackedPresence = null;
+        }
+        
+        return unpackedPresence;
     }
 }
