@@ -37,6 +37,12 @@ public class DbPushMessage {
     private boolean durable;
 
     /**
+     * If TRUE then this push notification is of unique type, thus only one (and newer) is accepted in the push message.
+     * If is FALSE then multiple of this messages can be in push message.
+     */
+    private boolean unique;
+
+    /**
      * Timestamp expiration, if needed.
      */
     private Long expireTstamp;
@@ -95,5 +101,13 @@ public class DbPushMessage {
 
     public void setExpireTstamp(Long expireTstamp) {
         this.expireTstamp = expireTstamp;
+    }
+
+    public boolean isUnique() {
+        return unique;
+    }
+
+    public void setUnique(boolean unique) {
+        this.unique = unique;
     }
 }

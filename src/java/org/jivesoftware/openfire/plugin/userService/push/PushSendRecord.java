@@ -1,10 +1,9 @@
 package org.jivesoftware.openfire.plugin.userService.push;
 
+import org.jivesoftware.openfire.plugin.userService.push.messages.PushIq;
 import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushMessage;
-import org.xmpp.packet.IQ;
+import org.json.JSONException;
 import org.xmpp.packet.JID;
-
-import java.util.Comparator;
 
 /**
  * Record for priority queue for failed send requests.
@@ -35,7 +34,17 @@ public class PushSendRecord implements Comparable<PushSendRecord> {
     /**
      * Actual packet to be sent.
      */
-    private IQ packet;
+    private PushIq packet;
+
+    /**
+     * If true, this message is designated to be forcefully resent even if user acknowledged its success recipient.
+     */
+    private boolean forceResend = false;
+
+    /**
+     * Simple locking object for synchronization.
+     */
+    public final Object lock = new Object();
 
     @Override
     public int compareTo(PushSendRecord pushSendRecord) {
@@ -51,8 +60,84 @@ public class PushSendRecord implements Comparable<PushSendRecord> {
         return sendTstamp < pushSendRecord.getSendTstamp() ? -1 : 1;
     }
 
+    /**
+     * Increment resend attempt counter.
+     */
     public void incSendCtr(){
         resendAttempt += 1;
+    }
+
+    /**
+     * Return true if this record can be merged with given one.
+     * @param rec
+     * @return
+     */
+    public boolean canMergeWithRecord(PushSendRecord rec){
+        if (rec == null || rec.getPushMsg() == null){
+            throw new RuntimeException("Null message encountered");
+        }
+
+        return pushMsg.canMergeWithMessage(rec.getPushMsg());
+    }
+
+    /**
+     * Merges this record with given one so this record is most up-to-date.
+     * @param rec
+     * @return
+     */
+    public boolean mergeWithRecord(PushSendRecord rec) throws JSONException {
+        if (!canMergeWithRecord(rec)) {
+            throw new RuntimeException("Record cannot be merged with given one!");
+        }
+
+        // Merge messages at first.
+        boolean wasChanged = pushMsg.mergeWithMessage(rec.getPushMsg());
+
+        // If was not changed, it has no point to update it...
+        if (!wasChanged){
+            return false;
+        }
+
+        // Regenerate new PushIq packet so it contains fresh payload.
+        rebuildPacket(true);
+        resendAttempt = 0;
+        if (sendTstamp > rec.getSendTstamp()){
+            sendTstamp = rec.getSendTstamp();
+        }
+
+        return true;
+    }
+
+    /**
+     * Rebuilds IQ packet from pushMessage. Used if pushMessage has been changed and packet needs to be rebuilt to be up to date.
+     * This is used in queue mechanism, if newer push request in enqueued, it cancels all previous push requests of the
+     * same type. These parts are removed from push message.
+     * @param newId
+     */
+    public void rebuildPacket(boolean newId) throws JSONException {
+        final PushIq newPacket = new PushIq();
+        newPacket.setTo(packet.getTo());
+        newPacket.setFrom(packet.getFrom());
+        newPacket.setType(packet.getType());
+        if (!newId){
+            newPacket.setID(packet.getID());
+        }
+
+        // Set new content - builds child element.
+        newPacket.setContent(pushMsg);
+        packet = newPacket;
+    }
+
+    @Override
+    public String toString() {
+        return "PushSendRecord{" +
+                "sendTstamp=" + sendTstamp +
+                ", lastSendTstamp=" + lastSendTstamp +
+                ", resendAttempt=" + resendAttempt +
+                ", pushMsg=" + pushMsg +
+                ", packet=" + packet +
+                ", forceResend=" + forceResend +
+                '}';
     }
 
     public long getSendTstamp() {
@@ -91,15 +176,23 @@ public class PushSendRecord implements Comparable<PushSendRecord> {
         return pushMsg;
     }
 
-    public void setPushMsg(SimplePushMessage pushMsg) {
+    public void setPushMsg(SimplePushMessage pushMsg) throws JSONException {
         this.pushMsg = pushMsg;
     }
 
-    public IQ getPacket() {
+    public PushIq getPacket() {
         return packet;
     }
 
-    public void setPacket(IQ packet) {
+    public void setPacket(PushIq packet) {
         this.packet = packet;
+    }
+
+    public boolean isForceResend() {
+        return forceResend;
+    }
+
+    public void setForceResend(boolean forceResend) {
+        this.forceResend = forceResend;
     }
 }

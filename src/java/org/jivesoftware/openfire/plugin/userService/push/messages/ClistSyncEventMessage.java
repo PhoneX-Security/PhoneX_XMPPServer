@@ -10,9 +10,11 @@ public class ClistSyncEventMessage extends SimplePushPart {
 
     public ClistSyncEventMessage() {
         this.setAction(PUSH);
+        this.setUnique(true);
     }
 
     public ClistSyncEventMessage(long tstamp) {
         super(PUSH, tstamp);
+        this.setUnique(true);
     }
 }

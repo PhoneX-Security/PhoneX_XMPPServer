@@ -971,7 +971,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
             if ("push".equalsIgnoreCase(action)) {
                 final String userName = obj.getString("user");
                 final String msg = obj.getString("msg");
-                log.info("Push notification for: " + userName + "; msg=" + msg + ";;");
+                log.info("Push notification for: " + userName + "; msg=" + msg + ";");
 
                 if ("clistSync".equalsIgnoreCase(msg)) {
                     log.info("ClistSync request for user: " + userName);

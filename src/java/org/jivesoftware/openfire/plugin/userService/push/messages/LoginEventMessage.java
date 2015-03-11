@@ -15,11 +15,13 @@ public class LoginEventMessage extends SimplePushPart {
 
     public LoginEventMessage() {
         setAction(PUSH);
+        this.setUnique(true);
     }
 
     public LoginEventMessage(long tstamp, long certNotBefore) {
         super(PUSH, tstamp);
         this.certNotBefore = certNotBefore;
+        this.setUnique(true);
     }
 
     @Override
