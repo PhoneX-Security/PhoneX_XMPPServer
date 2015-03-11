@@ -3,12 +3,13 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package org.jivesoftware.openfire.plugin.userService;
+package org.jivesoftware.openfire.plugin.userService.amqp;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.QueueingConsumer;
+import org.jivesoftware.openfire.plugin.userService.BackgroundThreadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

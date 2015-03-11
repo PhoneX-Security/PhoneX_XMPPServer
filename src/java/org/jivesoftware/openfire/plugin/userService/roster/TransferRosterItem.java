@@ -4,7 +4,7 @@
  * and open the template in the editor.
  */
 
-package org.jivesoftware.openfire.plugin.userService;
+package org.jivesoftware.openfire.plugin.userService.roster;
 
 import java.util.Objects;
 import org.codehaus.jackson.annotate.JsonAutoDetect;
