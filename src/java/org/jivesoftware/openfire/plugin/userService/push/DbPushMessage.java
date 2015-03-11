@@ -31,6 +31,16 @@ public class DbPushMessage {
      */
     private String auxData;
 
+    /**
+     * Should this message resist server restart?
+     */
+    private boolean durable;
+
+    /**
+     * Timestamp expiration, if needed.
+     */
+    private Long expireTstamp;
+
     public Integer getId() {
         return id;
     }
@@ -69,5 +79,21 @@ public class DbPushMessage {
 
     public void setAuxData(String auxData) {
         this.auxData = auxData;
+    }
+
+    public boolean isDurable() {
+        return durable;
+    }
+
+    public void setDurable(boolean durable) {
+        this.durable = durable;
+    }
+
+    public Long getExpireTstamp() {
+        return expireTstamp;
+    }
+
+    public void setExpireTstamp(Long expireTstamp) {
+        this.expireTstamp = expireTstamp;
     }
 }

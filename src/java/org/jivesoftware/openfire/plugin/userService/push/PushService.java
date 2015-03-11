@@ -10,7 +10,6 @@ import org.jivesoftware.openfire.handler.IQHandler;
 import org.jivesoftware.openfire.plugin.UserServicePlugin;
 import org.jivesoftware.openfire.plugin.userService.push.messages.ClistSyncEventMessage;
 import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushMessage;
-import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushPart;
 import org.json.JSONException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
 
 /**
@@ -34,6 +34,9 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
     public  static final String NAMESPACE = "urn:xmpp:phx";
     private        final IQHandlerInfo info = new IQHandlerInfo(ELEMENT_NAME, NAMESPACE);
     private        final PriorityBlockingQueue<PushSendRecord> sndQueue = new PriorityBlockingQueue<PushSendRecord>();
+    private        final ConcurrentHashMap<String, PushSendRecord> ackWait = new ConcurrentHashMap<String, PushSendRecord>();
+    private volatile boolean senderWorking = true;
+    private Thread senderThread;
 
     private UserServicePlugin plugin;
 
@@ -45,9 +48,23 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
     public void init() {
         IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
         iqRouter.addHandler(this);
+
+        // Sender thread.
+        senderThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                runSenderThread();
+            }
+        });
+
+        senderThread.setName("PushSender");
+        senderThread.start();
     }
 
     public void deinit(){
+        // Shutdown message sender.
+        senderWorking = false;
+
         // Remove this as IQ listener.
         try {
             IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
@@ -57,13 +74,71 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         }
     }
 
+    public void runSenderThread(){
+        log.info("Sender thread started.");
+        final IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
+
+        while(senderWorking){
+            while(!sndQueue.isEmpty()){
+                PushSendRecord sndRec = sndQueue.poll();
+                if (sndRec == null){
+                    continue;
+                }
+
+                final long curTime = System.currentTimeMillis();
+
+                // Compare time of sending with current time. If we have some time, take some nap.
+                if ((curTime - sndRec.getSendTstamp()) < 0){
+                    // Add back to queue and take a short nap.
+                    sndQueue.add(sndRec);
+                    break;
+                }
+
+                // If sending counter is too high, drop off from the queue.
+                if (sndRec.getResendAttempt() > 30){
+                    log.info(String.format("Send counter too high for packet %s to %s, dropping", sndRec.getPacketId(), sndRec.getDestination()));
+
+                    // TODO: store delivery result to database so it is not tried to deliver again.
+                    // ...
+
+                    continue;
+                }
+
+                // Send
+                try {
+                    sndRec.incSendCtr();
+                    iqRouter.addIQResultListener(sndRec.getPacketId(), this, 1000 * 60);
+                    iqRouter.route(sndRec.getPacket());
+
+                    log.info(String.format("Routing packet to: %s, packetId=%s", sndRec.getDestination(), sndRec.getPacketId()));
+                    plugin.getRoutingTable().routePacket(sndRec.getDestination(), sndRec.getPacket(), true);
+                    sndRec.setLastSendTstamp(curTime);
+
+                    // Store this record to the waiting map where it waits for ack or for timeout.
+                    ackWait.put(sndRec.getPacketId(), sndRec);
+                    log.info("Packet sent, ackWaitSize: %d", ackWait.size());
+                } catch(Exception ex){
+                    log.error("Error during sending a packet", ex);
+                }
+            }
+
+            try {
+                Thread.sleep(150);
+            } catch (Exception e) {
+                log.error("Sleep interrupted", e);
+                break;
+            }
+        }
+
+        log.info("Sender thread finishing.");
+    }
+
     public void pushClistSync(String user) throws JSONException {
         JID to = new JID(user);
 
         // Build push action.
         SimplePushMessage msg = buildClistSyncNotification(to.toBareJID());
-        List<PushSentInfo> pushSentInfo = this.sendPush(to, msg);
-        // TODO: process what succeded and what not...
+        this.sendPush(to, msg);
     }
 
     public SimplePushMessage buildClistSyncNotification(String user) throws JSONException {
@@ -88,7 +163,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         return pushNotif;
     }
 
-    private List<PushSentInfo> sendPush(JID to, SimplePushMessage msg) {
+    private void sendPush(JID to, SimplePushMessage msg) {
         final IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
         final String domain     = plugin.getServer().getServerInfo().getXMPPDomain();
         final List<PushSentInfo> info = new ArrayList<PushSentInfo>(4);
@@ -96,28 +171,25 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         // Routing table approach.
         try {
             final String json = msg.getJson().toString();
+            final long curTstamp = System.currentTimeMillis();
 
             // The user sent a directed presence to an entity
             // Broadcast it to all connected resources
             // TODO: if user is not connected (no session), postpone this until he connects...
+            // TODO: store this push message to database.
             for (JID jid : plugin.getRoutingTable().getRoutes(to.asBareJID(), new JID(domain))) {
-                final IQ pushNotif = buildPushNotification(to, json);
-
-                // Send with IQ router.
-                iqRouter.addIQResultListener(pushNotif.getID(), this, 1000 * 60);
-                iqRouter.route(pushNotif);
-
-                log.info(String.format("Routing packet to: %s, packetId=%s", jid, pushNotif.getID()));
-                plugin.getRoutingTable().routePacket(jid, pushNotif, false);
-
-                info.add(new PushSentInfo(pushNotif.getID(), jid));
+                // Store send requests to the sending queue so it handles re-sends and acknowledgement.
+                final IQ pushNotif = buildPushNotification(jid, json);
+                PushSendRecord sndRec = new PushSendRecord();
+                sndRec.setSendTstamp(curTstamp);
+                sndRec.setPacket(pushNotif);
+                sndRec.setPushMsg(msg);
+                sndQueue.add(sndRec);
             }
         } catch (Exception e) {
             // Well we just don't care then.
             log.error("Exception in routingTable send", e);
         }
-
-        return info;
     }
 
     @Override
@@ -142,28 +214,52 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         return Collections.singleton(NAMESPACE).iterator();
     }
 
+    /**
+     * Process IQ result/error for sent packet.
+     *
+     * @param packet
+     */
     @Override
     public void receivedAnswer(IQ packet) {
         final String packetId = packet.getID();
         final JID from = packet.getFrom();
         final IQ.Type type = packet.getType();
         log.info(String.format("Packet received: id=%s, from=%s, packet=%s", packetId, from, packet));
-        // TODO: check if response is not an error. In that case mark push notification
-        // as failed since client probably does not support this option.
-        // ...
-        if (IQ.Type.error.equals(type)) {
-            log.info("Remote party could not process this message.");
-            // TODO: mark finished for this id.
+
+        boolean success = !IQ.Type.error.equals(type);
+        PushSendRecord sndRec = ackWait.get(packetId);
+        if (sndRec == null){
+            log.info(String.format("Unknown packet received, id=%s, from=%s", packetId, from));
             return;
         }
 
-        // TODO implement success result.
+        log.info(String.format("Packet acknowledged, success=%s, storing to db, packetId=%s, from=%s", success, packetId, from));
+        // TODO: mark this record as finished in database. If success == false, this feature is not yet supported. Store it...
+        // ...
+
     }
 
+    /**
+     * IQ packet sent by us has timed out.
+     * @param packetId
+     */
     @Override
     public void answerTimeout(String packetId) {
-        // TODO: is active?
-        log.info(String.format("Packet timed out: id=%s", packetId));
+        PushSendRecord sndRec = ackWait.get(packetId);
+        log.info(String.format("Packet timed out: id=%s, sndRec=%s", packetId, sndRec));
+        if (sndRec == null){
+            log.info(String.format("Unknown packet received, id=%s, size=%d", packetId, ackWait.size()));
+            return;
+        }
+
+        // Remove from waiting map.
+        ackWait.remove(packetId);
+
+        // Re-schedule sending of this packet.
+        // If there is no client session anymore (client offline) this is not reached thus give some
+        // reasonable resend boundary, e.g. 10 attempts.
+        sndRec.setSendTstamp(System.currentTimeMillis() + 1000);
+        sndQueue.add(sndRec);
     }
 
     public UserServicePlugin getPlugin() {
@@ -172,5 +268,13 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
 
     public void setPlugin(UserServicePlugin plugin) {
         this.plugin = plugin;
+    }
+
+    public ConcurrentHashMap<String, PushSendRecord> getAckWait() {
+        return ackWait;
+    }
+
+    public PriorityBlockingQueue<PushSendRecord> getSndQueue() {
+        return sndQueue;
     }
 }

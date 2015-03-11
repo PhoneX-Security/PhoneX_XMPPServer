@@ -1,5 +1,7 @@
 package org.jivesoftware.openfire.plugin.userService.push;
 
+import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushMessage;
+import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 
 import java.util.Comparator;
@@ -25,8 +27,15 @@ public class PushSendRecord implements Comparable<PushSendRecord> {
      */
     private int  resendAttempt    = 0;
 
-    private String packetId;
-    private JID destination;
+    /**
+     * Push message to send record - if sending succeeds, this is needed for processing.
+     */
+    private SimplePushMessage pushMsg;
+
+    /**
+     * Actual packet to be sent.
+     */
+    private IQ packet;
 
     @Override
     public int compareTo(PushSendRecord pushSendRecord) {
@@ -36,10 +45,14 @@ public class PushSendRecord implements Comparable<PushSendRecord> {
 
         // Tie-breaker is the packet ID.
         if (sendTstamp == pushSendRecord.getSendTstamp()){
-            return packetId.compareTo(pushSendRecord.getPacketId());
+            return packet.getID().compareTo(pushSendRecord.getPacketId());
         }
 
         return sendTstamp < pushSendRecord.getSendTstamp() ? -1 : 1;
+    }
+
+    public void incSendCtr(){
+        resendAttempt += 1;
     }
 
     public long getSendTstamp() {
@@ -51,11 +64,7 @@ public class PushSendRecord implements Comparable<PushSendRecord> {
     }
 
     public String getPacketId() {
-        return packetId;
-    }
-
-    public void setPacketId(String packetId) {
-        this.packetId = packetId;
+        return packet.getID();
     }
 
     public long getLastSendTstamp() {
@@ -75,10 +84,22 @@ public class PushSendRecord implements Comparable<PushSendRecord> {
     }
 
     public JID getDestination() {
-        return destination;
+        return packet.getTo();
     }
 
-    public void setDestination(JID destination) {
-        this.destination = destination;
+    public SimplePushMessage getPushMsg() {
+        return pushMsg;
+    }
+
+    public void setPushMsg(SimplePushMessage pushMsg) {
+        this.pushMsg = pushMsg;
+    }
+
+    public IQ getPacket() {
+        return packet;
+    }
+
+    public void setPacket(IQ packet) {
+        this.packet = packet;
     }
 }

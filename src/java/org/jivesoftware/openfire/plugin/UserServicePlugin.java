@@ -25,16 +25,17 @@ import net.phonex.pub.proto.PushNotifications;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 import org.jivesoftware.openfire.*;
-import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.container.Plugin;
 import org.jivesoftware.openfire.container.PluginManager;
-import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
 import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
-import org.jivesoftware.openfire.handler.IQHandler;
 import org.jivesoftware.openfire.lockout.LockOutManager;
+import org.jivesoftware.openfire.plugin.userService.amqp.AMQPListener;
+import org.jivesoftware.openfire.plugin.userService.amqp.AMQPMsgListener;
+import org.jivesoftware.openfire.plugin.userService.push.PushService;
+import org.jivesoftware.openfire.plugin.userService.roster.TransferRosterItem;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
 import org.jivesoftware.openfire.roster.Roster;
@@ -53,8 +54,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.xmpp.component.IQResultListener;
-import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Presence;
 
@@ -71,8 +70,7 @@ import java.util.*;
  *
  * @author Justin Hunt
  */
-public class UserServicePlugin extends IQHandler implements Plugin, PropertyEventListener,
-        ServerFeaturesProvider, IQResultListener, AMQPMsgListener {
+public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsgListener {
     private static final Logger log = LoggerFactory.getLogger(UserServicePlugin.class);
 
     private UserManager userManager;
@@ -82,6 +80,7 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
     private PacketDeliverer deliverer;
     private PresenceManager presenceManager;
     private AMQPListener amqpListener;
+    private PushService pushSvc;
 
     private String secret;
     private boolean enabled;
@@ -89,10 +88,6 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
 
     private Element standardPrivacyListElement;
     private static final String standardPLName = "phonex_roster";
-
-    public static final String ELEMENT_NAME = "push";
-    public static final String NAMESPACE = "urn:xmpp:phx";
-    private final IQHandlerInfo info;
 
     // Warning! This privacy list block self publishing since I don't have myself in my 
     // roster, presence update among my devices is blocked...
@@ -107,8 +102,7 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
             + "     <item action='deny' order='5'></item>"*/
 
     public UserServicePlugin() {
-        super("XMPP Server Push Notification");
-        info = new IQHandlerInfo(ELEMENT_NAME, NAMESPACE);
+
     }
 
     @Override
@@ -119,6 +113,7 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
         presenceManager = server.getPresenceManager();
         routingTable = server.getRoutingTable();
         deliverer = server.getPacketDeliverer();
+        pushSvc = new PushService(this);
 
         secret = JiveGlobals.getProperty("plugin.userservice.secret", "");
         // If no secret key has been assigned to the user service yet, assign a random one.
@@ -137,8 +132,7 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
         PropertyEventDispatcher.addListener(this);
 
         // Register this as an IQ handler
-        IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
-        iqRouter.addHandler(this);
+        pushSvc.init();
 
         // Start AMQP listener
         amqpListener = new AMQPListener();
@@ -160,17 +154,10 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
     public void destroyPlugin() {
         userManager = null;
         amqpListener.deinit();
+        pushSvc.deinit();
 
         // Stop listening to system property events
         PropertyEventDispatcher.removeListener(this);
-
-        // Remove this as IQ listener.
-        try {
-            IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
-            iqRouter.removeHandler(this);
-        } catch (Exception ex) {
-            log.error("Could not unregister from IQ router", ex);
-        }
     }
 
     public void createUser(String username, String password, String name, String email, String groupNames)
@@ -962,116 +949,7 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
     }
 
     private void pushClistSync(String user) throws JSONException {
-        JID to = new JID(user);
-
-        // Build push action.
-        final JSONObject jsonObj = this.buildClistSyncNotification(to.toBareJID());
-        final String json = jsonObj.toString();
-
-        String packetId = this.sendPush(to, json);
-        log.info(String.format("Packet sent id=%s, to=%s, obj=%s", packetId, to.toBareJID(), json));
-    }
-
-    public JSONObject buildClistSyncNotification(String user) throws JSONException {
-        JSONObject obj = new JSONObject();
-        // Base field - action/method of this message.
-        obj.put("action", "push");
-
-        // Destination user this push message is designated.
-        obj.put("user", user);
-
-        // Push message event that relates to this push message.
-        obj.put("msg", "clistSync");
-
-        // Time of the event so user can know if he processed it already (perhaps by
-        // other means - fetching whole contact list) or not.
-        obj.put("milliUTC", System.currentTimeMillis());
-
-        // TODO: group all recent push messages to msgs field (array). Each push message
-        // has own time of creation, if needed. In simpliest case it is an empty object.
-        return obj;
-    }
-
-    private String sendPush(JID to, String json) {
-        IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
-        final IQ pushNotif = new IQ(IQ.Type.get);
-
-        Element pushElem = pushNotif.setChildElement(ELEMENT_NAME, NAMESPACE);
-        pushElem.addAttribute("version", "1");
-
-        Element jsonElement = pushElem.addElement("json");
-        jsonElement.addCDATA(json);
-
-        pushNotif.setFrom(server.getServerInfo().getXMPPDomain());
-        pushNotif.setTo(to.asBareJID());
-
-        // Send with IQ router.
-        // TODO: take timeouting mechanism here.
-        iqRouter.addIQResultListener(pushNotif.getID(), this, 1000 * 60);
-        iqRouter.route(pushNotif);
-
-        // Routing table approach.
-        try {
-            // The user sent a directed presence to an entity
-            // Broadcast it to all connected resources
-            // TODO: if user is not connected (no session), postpone this until he connects...
-            for (JID jid : routingTable.getRoutes(pushNotif.getTo(), pushNotif.getFrom())) {
-                // Route the packet
-                log.info("Routing packet to: " + jid);
-                routingTable.routePacket(jid, pushNotif, false);
-            }
-        } catch (Exception e) {
-            // Well we just don't care then.
-            log.error("Exception in routingTable send", e);
-        }
-
-        return pushNotif.getID();
-    }
-
-    @Override
-    public IQ handleIQ(IQ packet) throws UnauthorizedException {
-        final IQ.Type iqType = packet.getType();
-        log.info("Handle IQ packet_type: %s", iqType);
-        if (IQ.Type.result.equals(iqType)) {
-            // TODO: mark given push update 
-            return null;
-        }
-
-        return null;
-    }
-
-    @Override
-    public IQHandlerInfo getInfo() {
-        return info;
-    }
-
-    @Override
-    public Iterator<String> getFeatures() {
-        return Collections.singleton(NAMESPACE).iterator();
-    }
-
-    @Override
-    public void receivedAnswer(IQ packet) {
-        final String packetId = packet.getID();
-        final JID from = packet.getFrom();
-        final IQ.Type type = packet.getType();
-        log.info(String.format("Packet received: id=%s, from=%s, packet=%s", packetId, from, packet));
-        // TODO: check if response is not an error. In that case mark push notification
-        // as failed since client probably does not support this option.
-        // ...
-        if (IQ.Type.error.equals(type)) {
-            log.info("Remote party could not process this message.");
-            // TODO: mark finished for this id.
-            return;
-        }
-
-        // TODO implement success result.
-    }
-
-    @Override
-    public void answerTimeout(String packetId) {
-        // TODO: is active?
-        log.info(String.format("Packet timed out: id=%s", packetId));
+        pushSvc.pushClistSync(user);
     }
 
     /**
@@ -1107,5 +985,33 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
         } catch (Exception ex) {
             log.warn("Exception in processing a new message");
         }
+    }
+
+    public UserManager getUserManager() {
+        return userManager;
+    }
+
+    public RosterManager getRosterManager() {
+        return rosterManager;
+    }
+
+    public XMPPServer getServer() {
+        return server;
+    }
+
+    public RoutingTable getRoutingTable() {
+        return routingTable;
+    }
+
+    public PacketDeliverer getDeliverer() {
+        return deliverer;
+    }
+
+    public PresenceManager getPresenceManager() {
+        return presenceManager;
+    }
+
+    public AMQPListener getAmqpListener() {
+        return amqpListener;
     }
 }
