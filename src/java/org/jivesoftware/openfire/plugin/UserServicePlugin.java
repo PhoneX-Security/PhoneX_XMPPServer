@@ -21,46 +21,18 @@ package org.jivesoftware.openfire.plugin;
 
 import com.google.protobuf.UnknownFieldSet;
 import com.rabbitmq.client.QueueingConsumer;
-import java.io.File;
-import java.io.StringReader;
-import java.net.URLEncoder;
-import java.security.MessageDigest;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.StringTokenizer;
-import javax.xml.bind.DatatypeConverter;
 import net.phonex.pub.proto.PushNotifications;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
-import org.jivesoftware.openfire.IQHandlerInfo;
-import org.jivesoftware.openfire.IQRouter;
-import org.jivesoftware.openfire.PacketDeliverer;
-import org.jivesoftware.openfire.PresenceManager;
-import org.jivesoftware.openfire.RoutingTable;
-
-import org.jivesoftware.openfire.SharedGroupException;
-import org.jivesoftware.openfire.StreamID;
-import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.*;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.container.Plugin;
 import org.jivesoftware.openfire.container.PluginManager;
 import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.group.Group;
+import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
 import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
-import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
 import org.jivesoftware.openfire.handler.IQHandler;
 import org.jivesoftware.openfire.lockout.LockOutManager;
 import org.jivesoftware.openfire.privacy.PrivacyList;
@@ -68,14 +40,12 @@ import org.jivesoftware.openfire.privacy.PrivacyListManager;
 import org.jivesoftware.openfire.roster.Roster;
 import org.jivesoftware.openfire.roster.RosterItem;
 import org.jivesoftware.openfire.roster.RosterManager;
-import org.jivesoftware.openfire.session.ClientSession;
 import org.jivesoftware.openfire.session.Session;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveGlobals;
-import org.jivesoftware.util.Log;
 import org.jivesoftware.util.PropertyEventDispatcher;
 import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.StringUtils;
@@ -88,16 +58,23 @@ import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Presence;
 
+import javax.xml.bind.DatatypeConverter;
+import java.io.File;
+import java.io.StringReader;
+import java.net.URLEncoder;
+import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
+import java.util.*;
+
 /**
  * Plugin that allows the administration of users via HTTP requests.
  *
  * @author Justin Hunt
  */
-public class UserServicePlugin extends IQHandler implements Plugin, PropertyEventListener, 
-        ServerFeaturesProvider, IQResultListener, AMQPMsgListener 
-{
+public class UserServicePlugin extends IQHandler implements Plugin, PropertyEventListener,
+        ServerFeaturesProvider, IQResultListener, AMQPMsgListener {
     private static final Logger log = LoggerFactory.getLogger(UserServicePlugin.class);
-    
+
     private UserManager userManager;
     private RosterManager rosterManager;
     private XMPPServer server;
@@ -109,20 +86,20 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
     private String secret;
     private boolean enabled;
     private Collection<String> allowedIPs;
-    
+
     private Element standardPrivacyListElement;
-    private static final String standardPLName="phonex_roster";
+    private static final String standardPLName = "phonex_roster";
 
     public static final String ELEMENT_NAME = "push";
     public static final String NAMESPACE = "urn:xmpp:phx";
     private final IQHandlerInfo info;
-    
+
     // Warning! This privacy list block self publishing since I don't have myself in my 
     // roster, presence update among my devices is blocked...
-    private static final String standardPrivacyListString = 
-              "<list xmlns='jabber:iq:privacy' name='"+standardPLName+"'>"
-            + "     <item type='subscription' value='none' action='deny' order='1'><message/><presence-in/><presence-out/></item>"
-            + "</list>";
+    private static final String standardPrivacyListString =
+            "<list xmlns='jabber:iq:privacy' name='" + standardPLName + "'>"
+                    + "     <item type='subscription' value='none' action='deny' order='1'><message/><presence-in/><presence-out/></item>"
+                    + "</list>";
     
            /* + "     <item type='subscription' value='both' action='allow' order='1'></item>"
             + "     <item type='subscription' value='from' action='allow' order='2'></item>"
@@ -145,7 +122,7 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
 
         secret = JiveGlobals.getProperty("plugin.userservice.secret", "");
         // If no secret key has been assigned to the user service yet, assign a random one.
-        if (secret.equals("")){
+        if (secret.equals("")) {
             secret = StringUtils.randomString(8);
             setSecret(secret);
         }
@@ -158,24 +135,24 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
 
         // Listen to system property events
         PropertyEventDispatcher.addListener(this);
-        
+
         // Register this as an IQ handler
         IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
         iqRouter.addHandler(this);
-        
+
         // Start AMQP listener
         amqpListener = new AMQPListener();
         amqpListener.init();
         amqpListener.setListener(this);
-        
+
         // Prepare PrivacyList as an element for privacylist construction further in code.
         try {
             SAXReader xmlReader = new SAXReader();
             xmlReader.setEncoding("UTF-8");
             standardPrivacyListElement = xmlReader.read(new StringReader(standardPrivacyListString)).getRootElement();
-            Log.info("PrivacyList constructed");
+            log.info("PrivacyList constructed");
         } catch (Exception e) {
-            Log.error(e.getMessage(), e);
+            log.error(e.getMessage(), e);
         }
     }
 
@@ -183,22 +160,21 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
     public void destroyPlugin() {
         userManager = null;
         amqpListener.deinit();
-        
+
         // Stop listening to system property events
         PropertyEventDispatcher.removeListener(this);
-        
+
         // Remove this as IQ listener.
         try {
             IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
             iqRouter.removeHandler(this);
-        } catch(Exception ex){
-            Log.error("Could not unregister from IQ router", ex);
+        } catch (Exception ex) {
+            log.error("Could not unregister from IQ router", ex);
         }
     }
 
     public void createUser(String username, String password, String name, String email, String groupNames)
-            throws UserAlreadyExistsException, GroupAlreadyExistsException, UserNotFoundException, GroupNotFoundException
-    {
+            throws UserAlreadyExistsException, GroupAlreadyExistsException, UserNotFoundException, GroupNotFoundException {
         userManager.createUser(username, password, name, email);
         userManager.getUser(username);
 
@@ -206,21 +182,20 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
             Collection<Group> groups = new ArrayList<Group>();
             StringTokenizer tkn = new StringTokenizer(groupNames, ",");
 
-            while (tkn.hasMoreTokens())
-            {
-				String groupName = tkn.nextToken();
-				Group group = null;
+            while (tkn.hasMoreTokens()) {
+                String groupName = tkn.nextToken();
+                Group group = null;
 
                 try {
                     GroupManager.getInstance().getGroup(groupName);
                 } catch (GroupNotFoundException e) {
                     // Create this group                    ;
-					GroupManager.getInstance().createGroup(groupName);
+                    GroupManager.getInstance().createGroup(groupName);
                 }
-				group = GroupManager.getInstance().getGroup(groupName);
-				group.getProperties().put("sharedRoster.showInRoster", "onlyGroup");
-				group.getProperties().put("sharedRoster.displayName", groupName);
-				group.getProperties().put("sharedRoster.groupList", "");
+                group = GroupManager.getInstance().getGroup(groupName);
+                group.getProperties().put("sharedRoster.showInRoster", "onlyGroup");
+                group.getProperties().put("sharedRoster.displayName", groupName);
+                group.getProperties().put("sharedRoster.groupList", "");
 
                 groups.add(group);
             }
@@ -230,12 +205,11 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
         }
     }
 
-    public void deleteUser(String username) throws UserNotFoundException, SharedGroupException
-    {
+    public void deleteUser(String username) throws UserNotFoundException, SharedGroupException {
         User user = getUser(username);
         userManager.deleteUser(user);
 
-		rosterManager.deleteRoster(server.createJID(username, null));
+        rosterManager.deleteRoster(server.createJID(username, null));
     }
 
     /**
@@ -243,10 +217,9 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
      *
      * @param username the username of the local user to disable.
      * @throws UserNotFoundException if the requested user
-     *         does not exist in the local server.
+     *                               does not exist in the local server.
      */
-    public void disableUser(String username) throws UserNotFoundException
-    {
+    public void disableUser(String username) throws UserNotFoundException {
         User user = getUser(username);
         LockOutManager.getInstance().disableAccount(username, null, null);
     }
@@ -256,17 +229,15 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
      *
      * @param username the username of the local user to enable.
      * @throws UserNotFoundException if the requested user
-     *         does not exist in the local server.
+     *                               does not exist in the local server.
      */
-    public void enableUser(String username) throws UserNotFoundException
-    {
+    public void enableUser(String username) throws UserNotFoundException {
         User user = getUser(username);
         LockOutManager.getInstance().enableAccount(username);
     }
 
     public void updateUser(String username, String password, String name, String email, String groupNames)
-            throws UserNotFoundException, GroupAlreadyExistsException
-    {
+            throws UserNotFoundException, GroupAlreadyExistsException {
         User user = getUser(username);
         if (password != null) user.setPassword(password);
         if (name != null) user.setName(name);
@@ -276,19 +247,18 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
             Collection<Group> newGroups = new ArrayList<Group>();
             StringTokenizer tkn = new StringTokenizer(groupNames, ",");
 
-            while (tkn.hasMoreTokens())
-            {
-				String groupName = tkn.nextToken();
-				Group group = null;
+            while (tkn.hasMoreTokens()) {
+                String groupName = tkn.nextToken();
+                Group group = null;
 
                 try {
                     group = GroupManager.getInstance().getGroup(groupName);
                 } catch (GroupNotFoundException e) {
                     // Create this group                    ;
-					group = GroupManager.getInstance().createGroup(groupName);
-                	group.getProperties().put("sharedRoster.showInRoster", "onlyGroup");
-                	group.getProperties().put("sharedRoster.displayName", groupName);
-                	group.getProperties().put("sharedRoster.groupList", "");
+                    group = GroupManager.getInstance().createGroup(groupName);
+                    group.getProperties().put("sharedRoster.showInRoster", "onlyGroup");
+                    group.getProperties().put("sharedRoster.displayName", groupName);
+                    group.getProperties().put("sharedRoster.groupList", "");
                 }
 
                 newGroups.add(group);
@@ -296,10 +266,10 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
 
             Collection<Group> existingGroups = GroupManager.getInstance().getGroups(user);
             // Get the list of groups to add to the user
-            Collection<Group> groupsToAdd =  new ArrayList<Group>(newGroups);
+            Collection<Group> groupsToAdd = new ArrayList<Group>(newGroups);
             groupsToAdd.removeAll(existingGroups);
             // Get the list of groups to remove from the user
-            Collection<Group> groupsToDelete =  new ArrayList<Group>(existingGroups);
+            Collection<Group> groupsToDelete = new ArrayList<Group>(existingGroups);
             groupsToDelete.removeAll(newGroups);
 
             // Add the user to the new groups
@@ -312,42 +282,41 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
             }
         }
     }
-    
+
     /**
      * Sync the roster with one specified in this request.
+     *
      * @param username
-     * @param rosterList 
-     * @throws org.jivesoftware.openfire.user.UserNotFoundException 
-     * @throws org.jivesoftware.openfire.user.UserAlreadyExistsException 
-     * @throws org.jivesoftware.openfire.SharedGroupException 
+     * @param rosterList
+     * @throws org.jivesoftware.openfire.user.UserNotFoundException
+     * @throws org.jivesoftware.openfire.user.UserAlreadyExistsException
+     * @throws org.jivesoftware.openfire.SharedGroupException
      */
-    public void syncRoster(String username, List<TransferRosterItem> rosterList) 
-            throws UserNotFoundException, UserAlreadyExistsException, SharedGroupException
-    {
-        
+    public void syncRoster(String username, List<TransferRosterItem> rosterList)
+            throws UserNotFoundException, UserAlreadyExistsException, SharedGroupException {
+
         final User usr = getUser(username);
         final JID prober = server.createJID(username, null);
         Roster r = rosterManager.getRoster(username);
-        
+
         Set<String> jidInRosterList = new HashSet<String>();
-        for(TransferRosterItem tri : rosterList){
+        for (TransferRosterItem tri : rosterList) {
             JID j = new JID(tri.jid);
             jidInRosterList.add(j.toBareJID().toString());
         }
-        
+
         Set<JID> newRosterEntries = new HashSet<JID>();
-        
+
         // Update roster according to sync data.
-        for(TransferRosterItem tri : rosterList){
+        for (TransferRosterItem tri : rosterList) {
             JID j = new JID(tri.jid);
             RosterItem ri = null;
             try {
                 ri = r.getRosterItem(j);
-            }
-            catch (UserNotFoundException e) {
+            } catch (UserNotFoundException e) {
                 //Roster item does not exist. Try to add it.
             }
-            
+
             List<String> groups = new ArrayList<String>();
             if (tri.groups != null) {
                 StringTokenizer tkn = new StringTokenizer(tri.groups, ",");
@@ -355,11 +324,11 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
                     groups.add(tkn.nextToken());
                 }
             }
-            
+
             // Tolerance to particular problems in the contact list.
             try {
                 // If null, roster item does not exist, thus create it.
-                if (ri==null){
+                if (ri == null) {
                     ri = r.createRosterItem(j, tri.name, groups, false, true);
                     newRosterEntries.add(j);
                 } else {
@@ -367,95 +336,96 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
                     ri.setGroups(groups);
                     ri.setNickname(tri.name);
                 }
-                
+
                 // If sub status differs, add to set.
                 RosterItem.SubType subType = RosterItem.SubType.getTypeFromInt(tri.subscription);
-                if (subType.equals(ri.getSubStatus())==false){
+                if (subType.equals(ri.getSubStatus()) == false) {
                     newRosterEntries.add(j);
                 }
 
                 // In both cases.
                 ri.setSubStatus(subType);
-                if (tri.askStatus!=null){
+                if (tri.askStatus != null) {
                     ri.setAskStatus(RosterItem.AskType.getTypeFromInt(tri.askStatus));
                 }
-                if (tri.recvStatus!=null){
+                if (tri.recvStatus != null) {
                     ri.setRecvStatus(RosterItem.RecvType.getTypeFromInt(tri.recvStatus));
                 }
 
                 r.updateRosterItem(ri);
-                Log.info(String.format("updating roster for u=%s, dest=%s, sub=%s", 
-                    username, tri.name, tri.subscription));                
-                
+                log.info(String.format("updating roster for u=%s, dest=%s, sub=%s",
+                        username, tri.name, tri.subscription));
+
                 // Protect destination user.
                 // TODO: optimize this. It sufficess to create the list when user
                 // is being created.
                 try {
-                    if (server.isLocal(j)){
+                    if (server.isLocal(j)) {
                         createDefaultPrivacyList(j.getNode());
                     }
-                } catch(Exception ex){
-                    Log.error("Problem with creating a default privacy list", ex);
+                } catch (Exception ex) {
+                    log.error("Problem with creating a default privacy list", ex);
                 }
-            } catch(Exception e){
+            } catch (Exception e) {
                 // Be tolerant to 1 user failing
-                Log.warn("Problem with adding a user to the roster", e);
+                log.warn("Problem with adding a user to the roster", e);
             }
         }
-        
+
         // Delete non-existent roster items from the roster.
         Collection<RosterItem> rosterItems = r.getRosterItems();
-        for(RosterItem ri : rosterItems){
+        for (RosterItem ri : rosterItems) {
             JID j = ri.getJid();
             String jid = j.asBareJID().toString();
-            if (jidInRosterList.contains(jid)==false){
+            if (jidInRosterList.contains(jid) == false) {
                 unsubscribeRosterItem(prober, r, j);
             }
         }
-        
+
         // Update new roster entries added -probe presence and broadcast data.
-        Log.info(String.format("sync, new roster entries, size=%s, prober=%s", newRosterEntries.size(), username));
-        if (!newRosterEntries.isEmpty()){
+        log.info(String.format("sync, new roster entries, size=%s, prober=%s", newRosterEntries.size(), username));
+        if (!newRosterEntries.isEmpty()) {
             refreshPresenceInfo(prober, newRosterEntries);
         }
-        
+
         // Protect current user.
         createDefaultPrivacyList(username);
     }
-    
+
     /**
      * Unsubscribes from remote presence.
+     *
      * @param master
      * @param r
-     * @param item2remove 
+     * @param item2remove
      */
-    private void unsubscribeRosterItem(JID master, Roster r, JID item2remove){
+    private void unsubscribeRosterItem(JID master, Roster r, JID item2remove) {
         try {
             final String itemStr = item2remove.getNode();
             final boolean isLocal = server.isLocal(item2remove);
-            
+
             RosterItem itemToRemove = r.getRosterItem(item2remove);
             if (itemToRemove != null && !itemToRemove.getSharedGroups().isEmpty()) {
                 throw new SharedGroupException("Cannot remove contact that belongs to a shared group");
             }
-            
-            if (itemToRemove==null){
-                Log.warn("item to remove is null: " + item2remove.getNode());
+
+            if (itemToRemove == null) {
+                log.warn("item to remove is null: " + item2remove.getNode());
                 return;
             }
-            
+
             // Router presence state (unavailable) to the remote user.
             Presence presence = new Presence();
             presence.setFrom(master);
             presence.setTo(itemToRemove.getJid());
             presence.setType(Presence.Type.unavailable);
             server.getPacketRouter().route(presence);
-            
+
             // Change roster record.
             RosterItem.SubType subType = itemToRemove.getSubStatus();
-            itemToRemove.setSubStatus(itemToRemove.SUB_NONE);
+            itemToRemove.setSubStatus(RosterItem.SUB_NONE);
             r.updateRosterItem(itemToRemove);
-            
+
             // Cancel any existing presence subscription between the user and the contact
             /*if (subType == RosterItem.SUB_TO || subType == RosterItem.SUB_BOTH) {
                 Presence presence = new Presence();
@@ -464,7 +434,7 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
                 presence.setType(Presence.Type.unsubscribe);
                 server.getPacketRouter().route(presence);
             }*/
-            
+
             // cancel any existing presence subscription between the contact and the user
             /*if (subType == RosterItem.SUB_FROM || subType == RosterItem.SUB_BOTH) {
                 Presence presence = new Presence();
@@ -473,21 +443,21 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
                 presence.setType(Presence.Type.unsubscribed);
                 server.getPacketRouter().route(presence);
             }*/
-            
-        } catch(Exception ex){
-            Log.warn("Problem with removing roster entry", ex);
+
+        } catch (Exception ex) {
+            log.warn("Problem with removing roster entry", ex);
         }
     }
-    
+
     /**
      * Deletes item2remove from the master's r roster.
      * Preserves item2remove's roster state.
-     * 
+     *
      * @param master
      * @param r
-     * @param item2remove 
+     * @param item2remove
      */
-    private void deleteRosterItem(JID master, Roster r, JID item2remove){
+    private void deleteRosterItem(JID master, Roster r, JID item2remove) {
         // Delete from the roster if not present in the sync list.
         // The following code fragment is a bit problematic since deleteRosterItem
         // deletes also r from the j's roster (or sets status to NONE).
@@ -497,71 +467,71 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
         try {
             final String itemStr = item2remove.getNode();
             final boolean isLocal = server.isLocal(item2remove);
-            
+
             // At first try to backup item's roster state against master,
             // in order to be recoverede later.
             RosterItem origItem = null;
             Roster recipientRoster = null;
-            if (isLocal){
+            if (isLocal) {
                 try {
                     recipientRoster = userManager.getUser(itemStr).getRoster();
                     origItem = recipientRoster.getRosterItem(master);
-                }
-                catch (UserNotFoundException e) {
+                } catch (UserNotFoundException e) {
                     // Do nothing
-                    Log.info("User not found: " + item2remove.getNode());
+                    log.info("User not found: " + item2remove.getNode());
                 }
             }
-            
-            Log.info(String.format("deleting roster for u=%s, dest=%s, local=%s, roster=%s, item=%s, subs=%s", 
-                    master, item2remove, isLocal, recipientRoster, origItem, origItem==null ? "-1" : origItem.getSubStatus()));
-            
+
+            log.info(String.format("deleting roster for u=%s, dest=%s, local=%s, roster=%s, item=%s, subs=%s",
+                    master, item2remove, isLocal, recipientRoster, origItem, origItem == null ? "-1" : origItem.getSubStatus()));
+
             // Delete item from the roster.
             // This call does a lot of things. It removes subscriptions, sends
             // unsubscribe, unsubscribed messages and many others.
             // It also modifies item's roster.
             r.deleteRosterItem(item2remove, true);
-            
+
             // Recover item's roster item for master, it there is any.
             // Warning: This method does not work! Openfire processes some parts
             // of the delete request asynchronically thus this code is executed 
             // before update to NONE happens on the item's side.
-            if (isLocal && origItem!=null && recipientRoster!=null){
+            if (isLocal && origItem != null && recipientRoster != null) {
                 try {
                     RosterItem updatedItem = recipientRoster.getRosterItem(master);
-                    if (updatedItem!=null){
+                    if (updatedItem != null) {
                         updatedItem.setAskStatus(origItem.getAskStatus());
                         updatedItem.setRecvStatus(origItem.getRecvStatus());
                         updatedItem.setSubStatus(origItem.getSubStatus());
                         recipientRoster.updateRosterItem(updatedItem);
                     } else {
-                        Log.info("Roster item was deleted, for " + item2remove.getNode());
+                        log.info("Roster item was deleted, for " + item2remove.getNode());
                     }
-                    
-                    
-                }catch(Exception ex){
-                    Log.warn("Exception in recovering item's roster.", ex);
+
+
+                } catch (Exception ex) {
+                    log.warn("Exception in recovering item's roster.", ex);
                 }
             }
-        } catch(Exception ex){
-            Log.warn("Problem with removing roster entry", ex);
+        } catch (Exception ex) {
+            log.warn("Problem with removing roster entry", ex);
         }
     }
-    
+
     /**
      * Probe each other presence states for the master and all newly added roster
      * entries. Goal: update actual presence data ASAP.
+     *
      * @param master
-     * @param newRosterEntries 
+     * @param newRosterEntries
      */
-    private void refreshPresenceInfo(JID master, Collection<JID> newRosterEntries){
+    private void refreshPresenceInfo(JID master, Collection<JID> newRosterEntries) {
         try {
-            for(JID probee : newRosterEntries){
+            for (JID probee : newRosterEntries) {
                 final String probeeStr = probee.getNode();
                 final boolean isLocal = server.isLocal(probee);
 
-                Log.info(String.format("probee: %s probeeStr: %s, prober: %s proberStr %s local %s", 
-                    probee, probeeStr, master, master.toBareJID(), isLocal));
+                log.info(String.format("probee: %s probeeStr: %s, prober: %s proberStr %s local %s",
+                        probee, probeeStr, master, master.toBareJID(), isLocal));
 
                 // Update for user owning the contact list.
                 presenceManager.probePresence(master, probee);
@@ -569,119 +539,121 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
                 // Update for the remote user.
                 presenceManager.probePresence(probee, master);
             }
-        } catch(Exception ex){
-            Log.warn("Exception in probing presence state", ex);
+        } catch (Exception ex) {
+            log.warn("Exception in probing presence state", ex);
         }
     }
-    
+
     /**
      * Non-exception wrapper for canProbePresence call.
+     *
      * @param prober
      * @param probee
-     * @return 
+     * @return
      */
-    private boolean canProbePresence(JID prober, String probee){
-        boolean canProbe=false;
+    private boolean canProbePresence(JID prober, String probee) {
+        boolean canProbe = false;
         try {
             canProbe = presenceManager.canProbePresence(prober, probee);
-        } catch(Exception ex){
-            
+        } catch (Exception ex) {
+
         }
-        
+
         return canProbe;
     }
-    
+
     /**
      * Measure to ignore all not from/to local users.
-     * @param username 
+     *
+     * @param username
      */
-    private void createDefaultPrivacyList(String username){
+    private void createDefaultPrivacyList(String username) {
         PrivacyListManager privListManager = PrivacyListManager.getInstance();
         PrivacyList list = privListManager.getDefaultPrivacyList(username);
-        if (list!=null && standardPLName.equals(list.getName())){
+        if (list != null && standardPLName.equals(list.getName())) {
             return;
         }
-        
+
         // Create a new privacy list for the caller, store to the database
         // and updates a cache.
-        synchronized(username.intern()){
+        synchronized (username.intern()) {
             try {
                 PrivacyList nlist = privListManager.createPrivacyList(username, standardPLName, standardPrivacyListElement);
                 nlist.setDefaultList(true);
 
                 // Update as master.
                 privListManager.changeDefaultList(username, nlist, list);
-                Log.info("Generated privacy list for: " + username);
-            } catch(Exception e){
-                Log.warn("Exception in setting a privacy list", e);
+                log.info("Generated privacy list for: " + username);
+            } catch (Exception e) {
+                log.warn("Exception in setting a privacy list", e);
             }
         }
     }
-    
+
     /**
      * Fetches roster for the user.
-     * @param username 
-     * @return  
-     * @throws org.jivesoftware.openfire.user.UserNotFoundException  
-     * @throws org.jivesoftware.openfire.user.UserAlreadyExistsException  
-     * @throws org.jivesoftware.openfire.SharedGroupException  
+     *
+     * @param username
+     * @return
+     * @throws org.jivesoftware.openfire.user.UserNotFoundException
+     * @throws org.jivesoftware.openfire.user.UserAlreadyExistsException
+     * @throws org.jivesoftware.openfire.SharedGroupException
      */
-    public List<TransferRosterItem> fetchRoster(String username) 
-        throws UserNotFoundException, UserAlreadyExistsException, SharedGroupException
-    {
+    public List<TransferRosterItem> fetchRoster(String username)
+            throws UserNotFoundException, UserAlreadyExistsException, SharedGroupException {
         getUser(username);
         Roster r = rosterManager.getRoster(username);
         List<TransferRosterItem> tRosterItems = new LinkedList<TransferRosterItem>();
-        
+
         // Delete non-existent roster items from the roster.
         Collection<RosterItem> rosterItems = r.getRosterItems();
-        for(RosterItem ri : rosterItems){
+        for (RosterItem ri : rosterItems) {
             JID j = ri.getJid();
             String jid = j.asBareJID().toString();
-            
+
             TransferRosterItem tri = new TransferRosterItem();
             tri.jid = jid;
             tri.name = ri.getNickname();
             tri.askStatus = ri.getAskStatus().getValue();
             tri.recvStatus = ri.getRecvStatus().getValue();
             tri.subscription = ri.getSubStatus().getValue();
-            
+
             List<String> groups = ri.getGroups();
-            if (groups==null || groups.isEmpty()){
+            if (groups == null || groups.isEmpty()) {
                 tri.groups = "";
-            } else{
+            } else {
                 tri.groups = StringUtils.collectionToString(groups);
             }
-            
+
             tRosterItems.add(tri);
         }
-        
+
         return tRosterItems;
     }
-    
+
     /**
      * Fetches all users in the system.
-     * @return 
+     *
+     * @return
      */
-    public List<String> fetchUsers(){
+    public List<String> fetchUsers() {
         return new LinkedList<String>(userManager.getUsernames());
     }
 
     /**
      * Add new roster item for specified user
      *
-     * @param username the username of the local user to add roster item to.
-     * @param itemJID the JID of the roster item to be added.
-     * @param itemName the nickname of the roster item.
+     * @param username     the username of the local user to add roster item to.
+     * @param itemJID      the JID of the roster item to be added.
+     * @param itemName     the nickname of the roster item.
      * @param subscription the type of subscription of the roster item. Possible values are: -1(remove), 0(none), 1(to), 2(from), 3(both).
-     * @param groupNames the name of a group to place contact into.
-     * @throws UserNotFoundException if the user does not exist in the local server.
+     * @param groupNames   the name of a group to place contact into.
+     * @throws UserNotFoundException      if the user does not exist in the local server.
      * @throws UserAlreadyExistsException if roster item with the same JID already exists.
-     * @throws SharedGroupException if roster item cannot be added to a shared group.
+     * @throws SharedGroupException       if roster item cannot be added to a shared group.
      */
     public void addRosterItem(String username, String itemJID, String itemName, String subscription, String groupNames)
-            throws UserNotFoundException, UserAlreadyExistsException, SharedGroupException
-    {
+            throws UserNotFoundException, UserAlreadyExistsException, SharedGroupException {
         getUser(username);
         Roster r = rosterManager.getRoster(username);
         JID j = new JID(itemJID);
@@ -689,8 +661,7 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
         try {
             r.getRosterItem(j);
             throw new UserAlreadyExistsException(j.toBareJID());
-        }
-        catch (UserNotFoundException e) {
+        } catch (UserNotFoundException e) {
             //Roster item does not exist. Try to add it.
         }
 
@@ -714,17 +685,16 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
     /**
      * Update roster item for specified user
      *
-     * @param username the username of the local user to update roster item for.
-     * @param itemJID the JID of the roster item to be updated.
-     * @param itemName the nickname of the roster item.
+     * @param username     the username of the local user to update roster item for.
+     * @param itemJID      the JID of the roster item to be updated.
+     * @param itemName     the nickname of the roster item.
      * @param subscription the type of subscription of the roster item. Possible values are: -1(remove), 0(none), 1(to), 2(from), 3(both).
-     * @param groupNames the name of a group.
+     * @param groupNames   the name of a group.
      * @throws UserNotFoundException if the user does not exist in the local server or roster item does not exist.
-     * @throws SharedGroupException if roster item cannot be added to a shared group.
+     * @throws SharedGroupException  if roster item cannot be added to a shared group.
      */
     public void updateRosterItem(String username, String itemJID, String itemName, String subscription, String groupNames)
-            throws UserNotFoundException, SharedGroupException
-    {
+            throws UserNotFoundException, SharedGroupException {
         getUser(username);
         Roster r = rosterManager.getRoster(username);
         JID j = new JID(itemJID);
@@ -753,13 +723,12 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
      * Delete roster item for specified user. No error returns if nothing to delete.
      *
      * @param username the username of the local user to add roster item to.
-     * @param itemJID the JID of the roster item to be deleted.
+     * @param itemJID  the JID of the roster item to be deleted.
      * @throws UserNotFoundException if the user does not exist in the local server.
-     * @throws SharedGroupException if roster item cannot be deleted from a shared group.
+     * @throws SharedGroupException  if roster item cannot be deleted from a shared group.
      */
     public void deleteRosterItem(String username, String itemJID)
-            throws UserNotFoundException, SharedGroupException
-    {
+            throws UserNotFoundException, SharedGroupException {
         getUser(username);
         Roster r = rosterManager.getRoster(username);
         JID j = new JID(itemJID);
@@ -777,7 +746,7 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
      * @param username the username of the local user to retrieve.
      * @return the requested user.
      * @throws UserNotFoundException if the requested user
-     *         does not exist in the local server.
+     *                               does not exist in the local server.
      */
     private User getUser(String username) throws UserNotFoundException {
         JID targetJID = server.createJID(username, null);
@@ -835,29 +804,25 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
      */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        JiveGlobals.setProperty("plugin.userservice.enabled",  enabled ? "true" : "false");
+        JiveGlobals.setProperty("plugin.userservice.enabled", enabled ? "true" : "false");
     }
 
     public void propertySet(String property, Map<String, Object> params) {
         if (property.equals("plugin.userservice.secret")) {
-            this.secret = (String)params.get("value");
-        }
-        else if (property.equals("plugin.userservice.enabled")) {
-            this.enabled = Boolean.parseBoolean((String)params.get("value"));
-        }
-        else if (property.equals("plugin.userservice.allowedIPs")) {
-            this.allowedIPs = StringUtils.stringToCollection((String)params.get("value"));
+            this.secret = (String) params.get("value");
+        } else if (property.equals("plugin.userservice.enabled")) {
+            this.enabled = Boolean.parseBoolean((String) params.get("value"));
+        } else if (property.equals("plugin.userservice.allowedIPs")) {
+            this.allowedIPs = StringUtils.stringToCollection((String) params.get("value"));
         }
     }
 
     public void propertyDeleted(String property, Map<String, Object> params) {
         if (property.equals("plugin.userservice.secret")) {
             this.secret = "";
-        }
-        else if (property.equals("plugin.userservice.enabled")) {
+        } else if (property.equals("plugin.userservice.enabled")) {
             this.enabled = false;
-        }
-        else if (property.equals("plugin.userservice.allowedIPs")) {
+        } else if (property.equals("plugin.userservice.allowedIPs")) {
             this.allowedIPs = Collections.emptyList();
         }
     }
@@ -869,171 +834,182 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
     public void xmlPropertyDeleted(String property, Map<String, Object> params) {
         // Do nothing
     }
-    
-    public static String getSessionId(Session sess){
+
+    public static String getSessionId(Session sess) {
         Random rnd = new Random();
         String idRes = Integer.toString(rnd.nextInt(8192));
-        
+
         try {
             StringBuilder sb = new StringBuilder();
             sb.append("sessionName: ").append(sess.getAddress().toString());
-            
+
             StreamID streamID = sess.getStreamID();
-            if (streamID != null){
+            if (streamID != null) {
                 sb.append(":stream:").append(streamID.getID());
             }
-            
+
             MessageDigest md5 = MessageDigest.getInstance("MD5");
             idRes = DatatypeConverter.printBase64Binary(md5.digest(sb.toString().getBytes("UTF-8")));
             idRes = idRes.replaceAll("[^a-zA-Z0-9]", "");
             idRes = URLEncoder.encode(idRes.substring(0, 12), "UTF-8");
-        } catch(Exception e){
-            
+        } catch (Exception e) {
+
         }
-        
+
         return idRes.trim().toLowerCase();
     }
-    
-    public static PushNotifications.PresencePush readPresencePush(String base64encodedState){
+
+    public static PushNotifications.PresencePush readPresencePush(String base64encodedState) {
         PushNotifications.PresencePush pp = null;
-        if (base64encodedState == null || base64encodedState.isEmpty()){
+        if (base64encodedState == null || base64encodedState.isEmpty()) {
             return null;
         }
-        
+
         try {
             // Presence push notification for this contact.
             // Using Google Protocol Buffers to serialize complex structures
             // into presence status text information.    
             final byte[] bpush = DatatypeConverter.parseBase64Binary(base64encodedState);
             pp = PushNotifications.PresencePush.parseFrom(bpush);
-        } catch(Exception e){
+        } catch (Exception e) {
             pp = null;
         }
-        
+
         return pp;
     }
-    
-    public static String formatPushPresence(PushNotifications.PresencePush pp){
+
+    public static String formatPushPresence(PushNotifications.PresencePush pp) {
         String unpackedPresence = null;
         try {
             // Presence push notification for this contact.
             // Using Google Protocol Buffers to serialize complex structures
             // into presence status text information.
             StringBuilder sb = new StringBuilder();
-            
+
             // Status.
-            if (pp.hasStatus()){
+            if (pp.hasStatus()) {
                 sb.append("status: ").append(pp.getStatus().toString()).append("\n");
             }
-            
+
             // Status text
-            if (pp.hasStatusText()){
+            if (pp.hasStatusText()) {
                 sb.append("statusText: ").append(pp.getStatusText()).append("\n");
             }
-            
+
             // SIP registered?
-            if (pp.hasSipRegistered()){
+            if (pp.hasSipRegistered()) {
                 sb.append("sipRegistered: ").append(pp.getSipRegistered()).append("\n");
             }
-            
+
             // Cert created
-            if (pp.hasCertNotBefore()){
+            if (pp.hasCertNotBefore()) {
                 long time = pp.getCertNotBefore();
                 SimpleDateFormat dformat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ", Locale.getDefault());
                 String fmtedDate = dformat.format(new Date(time));
                 sb.append("certNotBefore: ").append(fmtedDate).append("\ncertUtcMilli:").append(time).append("\n");
             }
-            
+
             // Cert hash
-            if (pp.hasCertHashShort()){
+            if (pp.hasCertHashShort()) {
                 sb.append("certHashShort: ").append(pp.getCertHashShort()).append("\n");
             }
-            
+
             // Cert hash full
-            if (pp.hasCertHashFull()){
+            if (pp.hasCertHashFull()) {
                 sb.append("certHashFull: ").append(pp.getCertHashFull()).append("\n");
             }
-            
+
             // Cap skip
-            if (pp.hasCapabilitiesSkip()){
+            if (pp.hasCapabilitiesSkip()) {
                 sb.append("capSkip: ").append(pp.getCapabilitiesSkip()).append("\n");
             }
-            
+
             // Caps
             final int capsCnt = pp.getCapabilitiesCount();
-            if (capsCnt > 0){
+            if (capsCnt > 0) {
                 sb.append("caps: ");
                 ArrayList<String> capList = new ArrayList<String>(pp.getCapabilitiesList());
                 java.util.Collections.sort(capList);
-                
-                for(int i = 0; i < capsCnt; i++){
+
+                for (int i = 0; i < capsCnt; i++) {
                     sb.append(capList.get(i));
-                    if (i+1 != capsCnt){
+                    if (i + 1 != capsCnt) {
                         sb.append("; ");
                     }
                 }
                 sb.append("\n");
             }
-            
+
             // Version
-            if (pp.hasVersion()){
+            if (pp.hasVersion()) {
                 sb.append("version: ").append(pp.getVersion()).append("\n");
             }
-            
+
             UnknownFieldSet unknownFields = pp.getUnknownFields();
-            if (unknownFields != null && unknownFields.isInitialized()){
+            if (unknownFields != null && unknownFields.isInitialized()) {
                 String uFieldsStr = unknownFields.toString();
-                if (uFieldsStr != null && !uFieldsStr.isEmpty()){
+                if (uFieldsStr != null && !uFieldsStr.isEmpty()) {
                     sb.append("Unknown fields: ").append(unknownFields.toString()).append("\n");
                 }
             }
-                        
+
             unpackedPresence = sb.toString();
-        } catch(Exception ex){
+        } catch (Exception ex) {
             unpackedPresence = null;
         }
-        
+
         return unpackedPresence;
     }
 
-    private void pushClistSync(String user) throws JSONException{
+    private void pushClistSync(String user) throws JSONException {
         JID to = new JID(user);
-        
+
         // Build push action.
         final JSONObject jsonObj = this.buildClistSyncNotification(to.toBareJID());
         final String json = jsonObj.toString();
-        
+
         String packetId = this.sendPush(to, json);
         log.info(String.format("Packet sent id=%s, to=%s, obj=%s", packetId, to.toBareJID(), json));
     }
-    
-    public JSONObject buildClistSyncNotification(String user) throws JSONException{
+
+    public JSONObject buildClistSyncNotification(String user) throws JSONException {
         JSONObject obj = new JSONObject();
-	obj.put("action", "push");
-	obj.put("user", user);
+        // Base field - action/method of this message.
+        obj.put("action", "push");
+
+        // Destination user this push message is designated.
+        obj.put("user", user);
+
+        // Push message event that relates to this push message.
         obj.put("msg", "clistSync");
+
+        // Time of the event so user can know if he processed it already (perhaps by
+        // other means - fetching whole contact list) or not.
+        obj.put("milliUTC", System.currentTimeMillis());
+
+        // TODO: group all recent push messages to msgs field (array). Each push message
+        // has own time of creation, if needed. In simpliest case it is an empty object.
         return obj;
     }
-    
-    private String sendPush(JID to, String json){
+
+    private String sendPush(JID to, String json) {
         IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
         final IQ pushNotif = new IQ(IQ.Type.get);
-        
+
         Element pushElem = pushNotif.setChildElement(ELEMENT_NAME, NAMESPACE);
         pushElem.addAttribute("version", "1");
-        
+
         Element jsonElement = pushElem.addElement("json");
         jsonElement.addCDATA(json);
-        
+
         pushNotif.setFrom(server.getServerInfo().getXMPPDomain());
         pushNotif.setTo(to.asBareJID());
-        log.info("pushNotif: " + pushNotif.toString());
-        
+
         // Send with IQ router.
         // TODO: take timeouting mechanism here.
         iqRouter.addIQResultListener(pushNotif.getID(), this, 1000 * 60);
         iqRouter.route(pushNotif);
-        
+
         // Routing table approach.
         try {
             // The user sent a directed presence to an entity
@@ -1044,24 +1020,24 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
                 log.info("Routing packet to: " + jid);
                 routingTable.routePacket(jid, pushNotif, false);
             }
-        } catch(Exception e){
+        } catch (Exception e) {
             // Well we just don't care then.
-            log.error("Exception in routingTable send", e);    
+            log.error("Exception in routingTable send", e);
         }
-        
+
         return pushNotif.getID();
     }
-    
+
     @Override
     public IQ handleIQ(IQ packet) throws UnauthorizedException {
         final IQ.Type iqType = packet.getType();
         log.info("Handle IQ packet_type: %s", iqType);
-        if (IQ.Type.result.equals(iqType)){
+        if (IQ.Type.result.equals(iqType)) {
             // TODO: mark given push update 
             return null;
         }
-        
-        return null;    
+
+        return null;
     }
 
     @Override
@@ -1078,11 +1054,17 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
     public void receivedAnswer(IQ packet) {
         final String packetId = packet.getID();
         final JID from = packet.getFrom();
+        final IQ.Type type = packet.getType();
         log.info(String.format("Packet received: id=%s, from=%s, packet=%s", packetId, from, packet));
         // TODO: check if response is not an error. In that case mark push notification
         // as failed since client probably does not support this option.
         // ...
-        
+        if (IQ.Type.error.equals(type)) {
+            log.info("Remote party could not process this message.");
+            // TODO: mark finished for this id.
+            return;
+        }
+
         // TODO implement success result.
     }
 
@@ -1094,9 +1076,9 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
 
     /**
      * Receive message from AMQP queue regarding XMPP server, from /phonex/xmpp queue.
-     * 
+     *
      * @param queue
-     * @param delivery 
+     * @param delivery
      */
     @Override
     public void acceptMessage(String queue, QueueingConsumer.Delivery delivery) {
@@ -1105,24 +1087,24 @@ public class UserServicePlugin extends IQHandler implements Plugin, PropertyEven
             log.info("Message received: " + message);
 
             final JSONObject obj = new JSONObject(message);
-            final String  action = obj.getString("action");
-            
+            final String action = obj.getString("action");
+
             // Handle push notification for XMPP destination.
-            if ("push".equalsIgnoreCase(action)){
+            if ("push".equalsIgnoreCase(action)) {
                 final String userName = obj.getString("user");
-                final String msg      = obj.getString("msg");
+                final String msg = obj.getString("msg");
                 log.info("Push notification for: " + userName + "; msg=" + msg + ";;");
-                
-                if ("clistSync".equalsIgnoreCase(msg)){
+
+                if ("clistSync".equalsIgnoreCase(msg)) {
                     log.info("ClistSync request for user: " + userName);
                     pushClistSync(userName);
                 }
-                
+
             } else {
                 log.info("Unrecognized action: " + action);
             }
-            
-        } catch(Exception ex){
+
+        } catch (Exception ex) {
             log.warn("Exception in processing a new message");
         }
     }
