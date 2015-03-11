@@ -43,8 +43,21 @@ public class PushQueryHandler extends IQHandler implements ServerFeaturesProvide
 
     @Override
     public IQ handleIQ(IQ packet) throws UnauthorizedException {
-        // TODO: implement handling here...
-        return null;
+        final IQ.Type iqType = packet.getType();
+        log.info(String.format("Handle IQ packet_type: %s", iqType));
+
+        // Handle only specific get requests.
+        if (!IQ.Type.get.equals(iqType)) {
+            return null;
+        }
+
+        if (svc == null){
+            return null;
+        }
+
+        svc.sendRecentPushNotifications(packet.getFrom());
+        IQ result = IQ.createResultIQ(packet);
+        return result;
     }
 
     @Override
