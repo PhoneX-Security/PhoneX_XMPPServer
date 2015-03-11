@@ -106,8 +106,15 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
 
                 // Send
                 try {
+                    // Is there still valid route to given destination?
+                    boolean hasClientRoute = plugin.getRoutingTable().hasClientRoute(sndRec.getDestination());
+                    if (!hasClientRoute){
+                        log.info(String.format("Client route disappeared meanwhile. Dropping request for id %s user %s", sndRec.getPacketId(), sndRec.getDestination()));
+                        continue;
+                    }
+
                     sndRec.incSendCtr();
-                    iqRouter.addIQResultListener(sndRec.getPacketId(), this, 1000 * 60);
+                    iqRouter.addIQResultListener(sndRec.getPacketId(), this, 1000 * 30);
                     iqRouter.route(sndRec.getPacket());
 
                     log.info(String.format("Routing packet to: %s, packetId=%s", sndRec.getDestination(), sndRec.getPacketId()));
@@ -116,7 +123,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
 
                     // Store this record to the waiting map where it waits for ack or for timeout.
                     ackWait.put(sndRec.getPacketId(), sndRec);
-                    log.info("Packet sent, ackWaitSize: %d", ackWait.size());
+                    log.info(String.format("Packet sent, ackWaitSize: %d", ackWait.size()));
                 } catch(Exception ex){
                     log.error("Error during sending a packet", ex);
                 }
@@ -258,7 +265,15 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         // Re-schedule sending of this packet.
         // If there is no client session anymore (client offline) this is not reached thus give some
         // reasonable resend boundary, e.g. 10 attempts.
-        sndRec.setSendTstamp(System.currentTimeMillis() + 1000);
+        final int resendAttempts = sndRec.getResendAttempt();
+        long timeOffset = 1000;
+        if (resendAttempts > 10 && resendAttempts < 20){
+            timeOffset = 5000;
+        } else if (resendAttempts > 20){
+            timeOffset = 15000;
+        }
+
+        sndRec.setSendTstamp(System.currentTimeMillis() + timeOffset);
         sndQueue.add(sndRec);
     }
 
