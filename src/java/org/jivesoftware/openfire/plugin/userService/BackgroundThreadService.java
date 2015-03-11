@@ -4,7 +4,7 @@
  * and open the template in the editor.
  */
 
-package org.jivesoftware.openfire.plugin;
+package org.jivesoftware.openfire.plugin.userService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package org.jivesoftware.openfire.plugin;
+package org.jivesoftware.openfire.plugin.userService;
 
 import com.rabbitmq.client.QueueingConsumer;
 
