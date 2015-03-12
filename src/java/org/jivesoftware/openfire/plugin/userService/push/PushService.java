@@ -161,9 +161,29 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                 if (ClistSyncEventMessage.PUSH.equalsIgnoreCase(pushAction)) {
                     log.info("ClistSync request for user: " + userName);
                     pushClistSync(userName, obj, msg);
+
                 } else if (NewCertEventMessage.PUSH.equalsIgnoreCase(pushAction)) {
                     log.info("Login event registered.");
                     pushNewCertEvent(userName, obj, msg);
+
+                } else if (AuthCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                    log.info("AuthCheck request event registered.");
+
+                } else if (ContactRequestEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                    log.info("Contact request event registered.");
+
+                } else if (LicenseCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                    log.info("license check request event registered.");
+
+                } else if (MissedCallEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                    log.info("missed call event registered.");
+
+                } else if (NewFileEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                    log.info("new file event registered.");
+
+                } else if (VersionCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                    log.info("new version event registered.");
+
                 } else {
                     log.info(String.format("Unknown push event: %s", pushAction));
                 }
@@ -213,13 +233,13 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         }
 
         final JSONObject data = msg.getJSONObject("data");
-        if (!data.has("notBefore")){
+        if (!data.has(NewCertEventMessage.FIELD_NOT_BEFORE)){
             log.info("NotBefore is missing in push req");
             return;
         }
 
-        final long certNotBefore = data.getLong("notBefore");
-        final String certHasPrefix = data.has("certHasPref") ? data.getString("certHashPref") : null;
+        final long certNotBefore = data.getLong(NewCertEventMessage.FIELD_NOT_BEFORE);
+        final String certHasPrefix = data.has(NewCertEventMessage.FIELD_CERT_HASH_PREFIX) ? data.getString(NewCertEventMessage.FIELD_CERT_HASH_PREFIX) : null;
         log.info("new cert push detected: " + obj.toString());
 
         NewCertEventMessage evt = new NewCertEventMessage(tstamp, certNotBefore, certHasPrefix);
@@ -291,12 +311,8 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         try {
             final long curTstamp = System.currentTimeMillis();
 
-            // Store this push message to database for on-connected and on-demand push delivery.
-            //persistPush(to, msg);
-
             // The user sent a directed presence to an entity
             // Broadcast it to all connected resources
-            // TODO: if user is not connected (no session), postpone this until he connects...
             for (JID jid : plugin.getRoutingTable().getRoutes(to.asBareJID(), new JID(domain))) {
                 // Store send requests to the sending queue so it handles re-sends and acknowledgement.
                 final PushIq pushNotif = buildPushNotification(jid, msg);
@@ -442,17 +458,6 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         // is inserted here.
         sndQueue.add(recordToAdd);
         log.info(String.format("Message enqueued, size=%d", sndQueue.size()));
-    }
-
-    /**
-     * Persists given simple message with designated recipient.
-     * When user connects / asks for recent push notifications, it uses entities stored here.
-     * @param to
-     * @param msg
-     */
-    public void persistPush(JID to, SimplePushMessage msg){
-        // TODO: implement, onWorkerQueue.
-        // TODO: check for uniqueness, if unique, delete old entries...
     }
 
     /**
