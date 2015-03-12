@@ -13,6 +13,8 @@ import org.xmpp.packet.IQ;
 public class PushIq extends IQ {
     public static final String ELEMENT_NAME = "push";
     public static final String NAMESPACE = "urn:xmpp:phx";
+    public static final String FIELD_VERSION = "version";
+    public static final String FIELD_JSON = "json";
     public static final IQHandlerInfo info = new IQHandlerInfo(ELEMENT_NAME, NAMESPACE);
 
     /**
@@ -28,9 +30,9 @@ public class PushIq extends IQ {
      */
     public void setContent(SimplePushMessage msg) throws JSONException{
         Element pushElem = this.setChildElement(ELEMENT_NAME, NAMESPACE);
-        pushElem.addAttribute("version", "1");
+        pushElem.addAttribute(FIELD_VERSION, "1");
 
-        Element jsonElement = pushElem.addElement("json");
+        Element jsonElement = pushElem.addElement(FIELD_JSON);
         jsonElement.addCDATA(msg.getJson().toString());
     }
 }

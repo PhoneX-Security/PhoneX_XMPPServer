@@ -4,20 +4,32 @@ package org.jivesoftware.openfire.plugin.userService.push;
  * Created by dusanklinec on 11.03.15.
  */
 public class DbPushDelivery {
+    public static final String FIELD_ID = "dlvrID";
+    public static final String FIELD_MSG_ID = "msgId";
+    public static final String FIELD_TIME = "dlvrTime";
+    public static final String FIELD_USER = "forUser";
+    public static final String FIELD_RESOURCE = "forResource";
+    public static final String FIELD_STATUS = "dlvrStatus";
+
     /**
      * Primary key of the delivery recipient.
      */
-    private Integer id;
+    private Long id;
 
     /**
      * Foreign key to the DbPushDelivery object.
      */
-    private int pushMessageId;
+    private long pushMessageId;
 
     /**
-     * JID in full form of the recipient of the push message.
+     * Recipient of the push message.
      */
-    private String jid;
+    private String user;
+
+    /**
+     * Recipient's resource.
+     */
+    private String resource;
 
     /**
      * Recipient timestamp - when client acknowledged this message.
@@ -31,28 +43,28 @@ public class DbPushDelivery {
      */
     private int status;
 
-    public Integer getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
-    public int getPushMessageId() {
+    public long getPushMessageId() {
         return pushMessageId;
     }
 
-    public void setPushMessageId(int pushMessageId) {
+    public void setPushMessageId(long pushMessageId) {
         this.pushMessageId = pushMessageId;
     }
 
-    public String getJid() {
-        return jid;
+    public String getUser() {
+        return user;
     }
 
-    public void setJid(String jid) {
-        this.jid = jid;
+    public void setUser(String user) {
+        this.user = user;
     }
 
     public long getTstamp() {
@@ -69,5 +81,13 @@ public class DbPushDelivery {
 
     public void setStatus(int status) {
         this.status = status;
+    }
+
+    public String getResource() {
+        return resource;
+    }
+
+    public void setResource(String resource) {
+        this.resource = resource;
     }
 }

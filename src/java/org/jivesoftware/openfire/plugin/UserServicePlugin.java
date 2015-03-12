@@ -50,7 +50,6 @@ import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.PropertyEventDispatcher;
 import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.StringUtils;
-import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -948,10 +947,6 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         return unpackedPresence;
     }
 
-    private void pushClistSync(String user) throws JSONException {
-        pushSvc.pushClistSync(user);
-    }
-
     /**
      * Receive message from AMQP queue regarding XMPP server, from /phonex/xmpp queue.
      *
@@ -969,15 +964,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
             // Handle push notification for XMPP destination.
             if ("push".equalsIgnoreCase(action)) {
-                final String userName = obj.getString("user");
-                final String msg = obj.getString("msg");
-                log.info("Push notification for: " + userName + "; msg=" + msg + ";");
-
-                if ("clistSync".equalsIgnoreCase(msg)) {
-                    log.info("ClistSync request for user: " + userName);
-                    pushClistSync(userName);
-                }
-
+                pushSvc.handlePushRequestFromQueue(obj);
             } else {
                 log.info("Unrecognized action: " + action);
             }

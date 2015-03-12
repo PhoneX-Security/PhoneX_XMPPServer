@@ -7,19 +7,17 @@ import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.handler.IQHandler;
 import org.jivesoftware.openfire.plugin.UserServicePlugin;
-import org.jivesoftware.openfire.plugin.userService.push.messages.ClistSyncEventMessage;
-import org.jivesoftware.openfire.plugin.userService.push.messages.PushIq;
-import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushMessage;
+import org.jivesoftware.openfire.plugin.userService.push.messages.*;
+import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.component.IQResultListener;
 import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.Iterator;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
 
@@ -146,20 +144,135 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         log.info("Sender thread finishing.");
     }
 
-    public void pushClistSync(String user) throws JSONException {
-        JID to = new JID(user);
+    /**
+     * Entry point for new incoming push message sent to XMPP queue.
+     * @param obj
+     */
+    public void handlePushRequestFromQueue(JSONObject obj) {
+        try {
+            final String userName = obj.getString("user");
+            final JSONArray msgs = obj.getJSONArray("msgs");
+            final int msgsCnt = msgs.length();
+            for(int i=0; i < msgsCnt; i++){
+                JSONObject msg = msgs.getJSONObject(i);
+                final String pushAction = msg.getString("push");
+                log.info("Push notification for: " + userName + "; msg=" + pushAction + ";");
 
-        // Build push action.
-        SimplePushMessage msg = buildClistSyncNotification(to.toBareJID());
-        this.sendPush(to, msg);
+                if (ClistSyncEventMessage.PUSH.equalsIgnoreCase(pushAction)) {
+                    log.info("ClistSync request for user: " + userName);
+                    pushClistSync(userName, obj, msg);
+                } else if (NewCertEventMessage.PUSH.equalsIgnoreCase(pushAction)) {
+                    log.info("Login event registered.");
+                    pushNewCertEvent(userName, obj, msg);
+                } else {
+                    log.info(String.format("Unknown push event: %s", pushAction));
+                }
+            }
+        } catch(Exception e){
+            log.error("Exception in push request from queue handling", e);
+        }
     }
 
-    public SimplePushMessage buildClistSyncNotification(String user) throws JSONException {
-        final long tstamp = System.currentTimeMillis();
+    /**
+     * Entry point for push message. This method gets called when plugin receives message to push clistSync message
+     * to designated user.
+     * @param user
+     * @throws JSONException
+     */
+    public void pushClistSync(String user, JSONObject obj, JSONObject msg) throws JSONException {
+        final JID to = new JID(user);
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
 
-        SimplePushMessage msg = new SimplePushMessage(user, tstamp);
-        msg.addPart(new ClistSyncEventMessage(tstamp));
-        return msg;
+        // Build push action.
+        SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
+        final ClistSyncEventMessage evt = new ClistSyncEventMessage(tstamp);
+
+        // Delete all previous & older notifications and insert this new one.
+        final DbPushMessage dbMsg = evt.toDbEntity();
+        dbMsg.setToUser(to.toBareJID());
+        dbMsg.setToResource(to.getResource());
+
+        Long id = DbEntityManager.persistDbMessage(dbMsg, true);
+        evt.setMessageId(id);
+
+        msgx.addPart(evt);
+        this.sendPush(to, msgx);
+    }
+
+    /**
+     * Entry point for push message. This method gets called when plugin receives message to push login event message
+     * to designated user.
+     * @param obj
+     */
+    public void pushNewCertEvent(String user, JSONObject obj, JSONObject msg) throws JSONException {
+        final JID to = new JID(user);
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+        if (!msg.has("data")){
+            log.info("Push does not contain data.");
+            return;
+        }
+
+        final JSONObject data = msg.getJSONObject("data");
+        if (!data.has("notBefore")){
+            log.info("NotBefore is missing in push req");
+            return;
+        }
+
+        final long certNotBefore = data.getLong("notBefore");
+        final String certHasPrefix = data.has("certHasPref") ? data.getString("certHashPref") : null;
+        log.info("new cert push detected: " + obj.toString());
+
+        NewCertEventMessage evt = new NewCertEventMessage(tstamp, certNotBefore, certHasPrefix);
+        SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
+
+        // Check database for newest certificate record.
+        // If newest is present in database, this one we drop.
+        List<Long> idsToDelete = new ArrayList<Long>();
+        Collection<DbPushMessage> msgsInDb = DbEntityManager.getPushByUserAndAction(to.toBareJID(), evt.getAction());
+
+        for (DbPushMessage dbPushMessage : msgsInDb) {
+
+            // Get NotBefore of the database record.
+            final String strNotBefore = dbPushMessage.getAux1();
+            Long notBefore = null;
+            try {
+                notBefore = Long.parseLong(strNotBefore);
+            } catch(Exception e){
+                log.error("Cannot parse not before aux", e);
+            }
+
+            // If cannot be parsed, delete this record.
+            if (notBefore == null){
+                idsToDelete.add(dbPushMessage.getId());
+                continue;
+            }
+
+            // If is smaller, keep the maximal time record. Given one is obsolete.
+            if (certNotBefore <= notBefore){
+                log.info(String.format("Not before is smaller than in db record; %d vs %d, dbid %d",
+                        certNotBefore, notBefore, dbPushMessage.getId())
+                );
+                return;
+            }
+
+            // Stored one is smaller. Add to delete.
+            idsToDelete.add(dbPushMessage.getId());
+        }
+
+        // Delete marked messages.
+        DbEntityManager.deleteMessages(idsToDelete);
+
+        // Store given message to database.
+        DbPushMessage dbMsg = evt.toDbEntity();
+        dbMsg.setToUser(to.toBareJID());
+        dbMsg.setToResource(to.getResource());
+        final Long id = DbEntityManager.persistDbMessage(dbMsg, false);
+
+        evt.setMessageId(id);
+        msgx.addPart(evt);
+
+        // Send to currently logged in users.
+        this.sendPush(to, msgx);
     }
 
     private PushIq buildPushNotification(JID to, SimplePushMessage msg) throws JSONException {
@@ -179,7 +292,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
             final long curTstamp = System.currentTimeMillis();
 
             // Store this push message to database for on-connected and on-demand push delivery.
-            persistPush(to, msg);
+            //persistPush(to, msg);
 
             // The user sent a directed presence to an entity
             // Broadcast it to all connected resources
@@ -349,7 +462,27 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      * @param statusCode
      */
     public void persistAck(PushSendRecord sndRec, int statusCode){
-        // TODO: implement, onWorkerQueue.
+        final SimplePushMessage pushMsg = sndRec == null ? null : sndRec.getPushMsg();
+        if (sndRec == null || pushMsg == null || pushMsg.getParts() == null){
+            log.error("Invalid send record received");
+            return;
+        }
+
+        // For each part separate ack.
+        for (SimplePushPart part : pushMsg.getParts()) {
+            final Long msgId = part.getMessageId();
+            if (msgId == null){
+                continue;
+            }
+
+            DbPushDelivery dbAck = new DbPushDelivery();
+            dbAck.setPushMessageId(msgId);
+            dbAck.setTstamp(System.currentTimeMillis());
+            dbAck.setUser(sndRec.getDestination().toBareJID());
+            dbAck.setResource(sndRec.getDestination().getResource());
+            dbAck.setStatus(statusCode);
+            DbEntityManager.persistDbAck(dbAck);
+        }
     }
 
     /**
@@ -359,7 +492,32 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      * @param to
      */
     public void sendRecentPushNotifications(JID to){
-       // TODO: implement, onWorkerQueue.
+        final Collection<DbPushMessage> msgs = DbEntityManager.getPushByUserAndAction(to.toBareJID(), null);
+        final long tstamp = System.currentTimeMillis();
+        final SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
+
+        int added = 0;
+        for (DbPushMessage msg : msgs) {
+            final String action = msg.getAction();
+            if (ClistSyncEventMessage.PUSH.equals(action)){
+                msgx.addPart(new ClistSyncEventMessage(msg.getTstamp()));
+                added += 1;
+
+            } else if (NewCertEventMessage.PUSH.equals(action)){
+                msgx.addPart(new NewCertEventMessage(msg.getTstamp(), Long.parseLong(msg.getAux1()), msg.getAux2()));
+                added += 1;
+
+            } else {
+                log.error(String.format("Unknown DB message action %s", action));
+            }
+        }
+
+        if (added == 0){
+            log.info(String.format("Nothing to send for JID: %s", to));
+        }
+
+        // Send to all connected devices/resources.
+        sendPush(to.asBareJID(), msgx);
     }
 
     /**
@@ -451,4 +609,5 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
     public PriorityBlockingQueue<PushSendRecord> getSndQueue() {
         return sndQueue;
     }
+
 }

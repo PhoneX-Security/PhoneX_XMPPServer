@@ -4,10 +4,22 @@ package org.jivesoftware.openfire.plugin.userService.push;
  * Created by dusanklinec on 11.03.15.
  */
 public class DbPushMessage {
+    public static final String FIELD_ID = "msgId";
+    public static final String FIELD_ACTION = "msgAction";
+    public static final String FIELD_TIME = "msgTime";
+    public static final String FIELD_EXPIRE_TIME = "msgExpire";
+    public static final String FIELD_USER = "forUser";
+    public static final String FIELD_RESOURCE = "forResource";
+    public static final String FIELD_IS_DURABLE = "isDurable";
+    public static final String FIELD_IS_UNIQUE = "isUnique";
+    public static final String FIELD_DATA = "auxData";
+    public static final String FIELD_AUX1 = "aux1";
+    public static final String FIELD_AUX2 = "aux2";
+
     /**
      * Primary key to the push message record.
      */
-    private Integer id;
+    private Long id;
 
     /**
      * Push message action name.
@@ -26,10 +38,25 @@ public class DbPushMessage {
     private String toUser;
 
     /**
+     * Resource
+     */
+    private String toResource;
+
+    /**
      * Aux data to be attached to the notification.
      * Must be in JSON format, will be placed in data:{} field.
      */
     private String auxData;
+
+    /**
+     * Aux data attribute for message.
+     */
+    private String aux1;
+
+    /**
+     * Aux data attribute for message.
+     */
+    private String aux2;
 
     /**
      * Should this message resist server restart?
@@ -47,11 +74,11 @@ public class DbPushMessage {
      */
     private Long expireTstamp;
 
-    public Integer getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
@@ -109,5 +136,29 @@ public class DbPushMessage {
 
     public void setUnique(boolean unique) {
         this.unique = unique;
+    }
+
+    public String getToResource() {
+        return toResource;
+    }
+
+    public void setToResource(String toResource) {
+        this.toResource = toResource;
+    }
+
+    public String getAux1() {
+        return aux1;
+    }
+
+    public void setAux1(String aux1) {
+        this.aux1 = aux1;
+    }
+
+    public String getAux2() {
+        return aux2;
+    }
+
+    public void setAux2(String aux2) {
+        this.aux2 = aux2;
     }
 }

@@ -1,5 +1,6 @@
 package org.jivesoftware.openfire.plugin.userService.push.messages;
 
+import org.jivesoftware.openfire.plugin.userService.push.DbPushMessage;
 import org.jivesoftware.openfire.plugin.userService.push.PushMessage;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -9,15 +10,35 @@ import org.json.JSONObject;
  * Created by dusanklinec on 11.03.15.
  */
 public abstract class SimplePushPart implements PushMessage {
-    private String action;
-    private long tstamp;
-    private JSONObject auxData;
+    public static final String FIELD_PUSH = "push";
+    public static final String FIELD_TIME_STAMP = "tstamp";
+    public static final String FIELD_DATA = "data";
+
+    /**
+     * Push action.
+     */
+    protected String action;
+
+    /**
+     * Push message timestamp.
+     */
+    protected long tstamp;
+
+    /**
+     * Aux push data to be transmitted with the push message in data:{} object.
+     */
+    protected JSONObject auxData;
 
     /**
      * If TRUE then this push notification is of unique type, thus only one (and newer) is accepted in the push message.
      * If is FALSE then multiple of this messages can be in push message.
      */
-    private boolean unique = true;
+    protected boolean unique = true;
+
+    /**
+     * Id of the corresponding database push message.
+     */
+    protected Long messageId;
 
     public SimplePushPart() {
     }
@@ -30,13 +51,64 @@ public abstract class SimplePushPart implements PushMessage {
     @Override
     public JSONObject getJson() throws JSONException {
         JSONObject obj = new JSONObject();
-        obj.put("push", action);
-        obj.put("tstamp", tstamp);
+        obj.put(FIELD_PUSH, action);
+        obj.put(FIELD_TIME_STAMP, tstamp);
         if (auxData != null){
-            obj.put("data", auxData);
+            obj.put(FIELD_DATA, auxData);
         }
 
         return obj;
+    }
+
+    /**
+     * Builds DB entity for this push message.
+     * @return
+     */
+    public DbPushMessage toDbEntity(){
+        DbPushMessage msg = new DbPushMessage();
+        msg.setAction(action);
+        msg.setTstamp(tstamp);
+        msg.setUnique(unique);
+        msg.setAuxData(auxData == null ? null : auxData.toString());
+        return msg;
+    }
+
+    /**
+     * Returns true if action of provided part is equal to ours.
+     *
+     * @param part
+     * @return
+     */
+    public boolean isEqualAction(SimplePushPart part){
+        return part != null && action.equals(part.getAction());
+    }
+
+    /**
+     * Returns true if this part can be successfully merged with given part.
+     * @param part
+     * @return
+     */
+    public boolean canMergeWith(SimplePushPart part){
+        return isEqualAction(part);
+    }
+
+    /**
+     * Merges this part with given one, returning true if this part was changed during merge.
+     * @param part
+     * @return
+     */
+    public boolean mergeWith(SimplePushPart part){
+        if (!canMergeWith(part)){
+            throw new RuntimeException("This part cannot be merged with given one");
+        }
+
+        if (tstamp < part.getTstamp()){
+            tstamp = part.getTstamp();
+            messageId = part.getMessageId();
+            return true;
+        }
+
+        return false;
     }
 
     public String getAction() {
@@ -69,6 +141,14 @@ public abstract class SimplePushPart implements PushMessage {
 
     public void setAuxData(JSONObject auxData) {
         this.auxData = auxData;
+    }
+
+    public Long getMessageId() {
+        return messageId;
+    }
+
+    public void setMessageId(Long messageId) {
+        this.messageId = messageId;
     }
 
     @Override

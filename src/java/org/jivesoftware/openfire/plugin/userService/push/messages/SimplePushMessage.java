@@ -6,7 +6,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.xmpp.packet.JID;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Envelope for push message.
@@ -14,22 +15,39 @@ import java.util.*;
  * Created by dusanklinec on 11.03.15.
  */
 public class SimplePushMessage implements PushMessage {
-    private final List<SimplePushPart> parts = new ArrayList<SimplePushPart>();
-    private String user;
-    private long tstamp;
+    public static final String FIELD_ACTION = "action";
+    public static final String FIELD_USER = "user";
+    public static final String FIELD_TIME_STAMP = "tstamp";
+    public static final String FIELD_MESSAGES = "msgs";
+    public static final String ACTION_PUSH = "push";
+
+    /**
+     * All push messages in this push message envelope.
+     */
+    protected final List<SimplePushPart> parts = new ArrayList<SimplePushPart>();
+
+    /**
+     * User this push message is designated to.
+     */
+    protected String user;
+
+    /**
+     * Timestamp of creation of this push message.
+     */
+    protected long tstamp;
 
     @Override
     public JSONObject getJson() throws JSONException {
         JSONObject obj = new JSONObject();
         // Base field - action/method of this message.
-        obj.put("action", "push");
+        obj.put(FIELD_ACTION, ACTION_PUSH);
 
         // Destination user this push message is designated.
-        obj.put("user", user);
+        obj.put(FIELD_USER, user);
 
         // Time of the event so user can know if he processed it already (perhaps by
         // other means - fetching whole contact list) or not.
-        obj.put("tstamp", tstamp);
+        obj.put(FIELD_TIME_STAMP, tstamp);
 
         // Array of push messages.
         JSONArray msgArray = new JSONArray();
@@ -37,7 +55,7 @@ public class SimplePushMessage implements PushMessage {
             msgArray.put(part.getJson());
         }
 
-        obj.put("msgs", msgArray);
+        obj.put(FIELD_MESSAGES, msgArray);
         return obj;
     }
 
@@ -81,95 +99,15 @@ public class SimplePushMessage implements PushMessage {
             throw new RuntimeException("Could not merge with this message - conflicting");
         }
 
-        boolean wasModified = false;
-
-        // Build part list.
-        PartRegister myRegister = buildRegister();
-        PartRegister foRegister = msg.buildRegister();
-
-        // Iterate my register and add his stuff, if has newer. Delete if present so we can then add all rest.
-        Set<String> keys = new HashSet<String>(myRegister.keySet());
-        for (String key : keys) {
-            final List<SimplePushPart> lst = myRegister.get(key);
-            if (lst == null){
-                continue;
-            }
-
-            // Does this entry exist in ofRegister? if not, continue with merging on different field.
-            List<SimplePushPart> foLst = foRegister.get(key);
-            if (foLst == null || foLst.isEmpty()){
-                foRegister.remove(key);
-                continue;
-            }
-
-            // Add all elements since our is empty.
-            if (lst.isEmpty()){
-                lst.addAll(foLst);
-                foRegister.remove(key);
-                wasModified |= true;
-                continue;
-            }
-
-            // Our list is non-empty, his as well.
-            SimplePushPart myPart = lst.get(0);
-            if (myPart.isUnique()){
-                // Unique part - take newer.
-                SimplePushPart hisPart = foLst.get(0);
-                if (myPart.getTstamp() < hisPart.getTstamp()){
-                    lst.clear();
-                    lst.add(hisPart);
-                    wasModified |= true;
-                }
-
-                foRegister.remove(key);
-                continue;
-            } else {
-                // Union parts, joint them.
-                lst.addAll(foLst);
-                foRegister.remove(key);
-                wasModified |= true;
-                continue;
-            }
+        SimplePushPartRegister myRegister = SimplePushPartRegister.buildFrom(this);
+        SimplePushPartRegister foRegister = SimplePushPartRegister.buildFrom(msg);
+        boolean wasModified = myRegister.mergeWithRegister(foRegister);
+        if (wasModified){
+            myRegister.buildParts(parts);
+            return true;
         }
 
-        // Add all items that left.
-        if (!foRegister.isEmpty()) {
-            myRegister.putAll(foRegister);
-            wasModified |= true;
-        }
-
-        // Build new part from the updated myRegister.
-        parts.clear();
-        for (Map.Entry<String, List<SimplePushPart>> e : myRegister.entrySet()) {
-            for (SimplePushPart part : e.getValue()) {
-                parts.add(part);
-            }
-        }
-
-        return wasModified;
-    }
-
-    /**
-     * Builds mapping for push action -> list of actions.
-     * Useful for push message merge.
-     *
-     * @return
-     */
-    public PartRegister buildRegister(){
-        PartRegister register = new PartRegister();
-        for (SimplePushPart part : parts) {
-            final String action = part.getAction();
-
-            List<SimplePushPart> lst = register.get(action);
-            if (lst == null){
-                lst = new ArrayList<SimplePushPart>();
-            }
-
-            lst.add(part);
-            register.put(action, lst);
-        }
-
-        return register;
+        return false;
     }
 
     public void addPart(SimplePushPart part){
@@ -229,9 +167,5 @@ public class SimplePushMessage implements PushMessage {
                 ", user='" + user + '\'' +
                 ", tstamp=" + tstamp +
                 '}';
-    }
-
-    public static class PartRegister extends HashMap<String, List<SimplePushPart>> {
-        // ...
     }
 }
