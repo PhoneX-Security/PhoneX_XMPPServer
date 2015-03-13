@@ -266,11 +266,21 @@ public class DbEntityManager {
     public static Long persistDbAck(DbPushDelivery msg){
         Connection con = null;
         PreparedStatement pstmt = null;
+        PreparedStatement pstmtDelete = null;
         ResultSet rs = null;
 
-        final String q = "INSERT INTO ofPushDelivery VALUES (NULL, ?, ?, ?, ?, ?)";
+        final String q  = "INSERT INTO ofPushDelivery VALUES (NULL, ?, ?, ?, ?, ?)";
+        final String dq = "DELETE FROM ofPushDelivery WHERE msgId=? AND forUser=? AND forResource=?";
         try {
             con = DbConnectionManager.getConnection();
+            con.setAutoCommit(false);
+
+            pstmtDelete = con.prepareStatement(dq);
+            pstmtDelete.setLong(1, msg.getPushMessageId());
+            pstmtDelete.setString(2, msg.getUser());
+            pstmtDelete.setString(3, msg.getResource() == null ? "" : msg.getResource());
+            pstmtDelete.executeUpdate();
+
             pstmt = con.prepareStatement(q, Statement.RETURN_GENERATED_KEYS);
             pstmt.setLong     (1,  msg.getPushMessageId());
             pstmt.setTimestamp(2, new Timestamp(msg.getTstamp()));
@@ -278,10 +288,8 @@ public class DbEntityManager {
             pstmt.setString   (4,  msg.getResource() == null ? "" : msg.getResource());
             pstmt.setInt      (5,  msg.getStatus());
 
-            int affectedRows = pstmt.executeUpdate();
-            if (affectedRows == 0) {
-                return null;
-            }
+            pstmt.executeUpdate();
+            con.commit();
 
             rs = pstmt.getGeneratedKeys();
             if (rs.next()) {
@@ -290,8 +298,15 @@ public class DbEntityManager {
         }
         catch (SQLException e) {
             log.info(e.getMessage(), e);
+
+            try {
+                con.rollback();
+            } catch (Exception e1) {
+                log.error("Rollback exception", e1);
+            }
         }
         finally {
+            DbConnectionManager.closeStatement(pstmtDelete);
             DbConnectionManager.closeConnection(rs, pstmt, con);
         }
 

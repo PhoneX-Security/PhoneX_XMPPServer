@@ -447,6 +447,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         for (SimplePushPart part : pushMsg.getParts()) {
             final Long msgId = part.getMessageId();
             if (msgId == null){
+                log.info(String.format("Could not persist ACK for msg %d, no id", msgId));
                 continue;
             }
 
@@ -495,11 +496,17 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         for (DbPushMessage msg : msgs) {
             final String action = msg.getAction();
             if (ClistSyncEventMessage.PUSH.equals(action)){
-                msgx.addPart(new ClistSyncEventMessage(msg.getTstamp()));
+                final ClistSyncEventMessage evt = new ClistSyncEventMessage(msg.getTstamp());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
                 added += 1;
 
             } else if (NewCertEventMessage.PUSH.equals(action)){
-                msgx.addPart(new NewCertEventMessage(msg.getTstamp(), Long.parseLong(msg.getAux1()), msg.getAux2()));
+                final NewCertEventMessage evt = new NewCertEventMessage(msg.getTstamp(), Long.parseLong(msg.getAux1()), msg.getAux2());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
                 added += 1;
 
             } else {
