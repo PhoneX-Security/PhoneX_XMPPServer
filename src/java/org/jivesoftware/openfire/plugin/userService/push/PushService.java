@@ -9,6 +9,8 @@ import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.handler.IQHandler;
 import org.jivesoftware.openfire.plugin.UserServicePlugin;
 import org.jivesoftware.openfire.plugin.userService.push.messages.*;
+import org.jivesoftware.openfire.roster.Roster;
+import org.jivesoftware.openfire.roster.RosterItem;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -547,7 +549,23 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         }
 
         log.info(String.format("Going to send presence for roster for: %s", from));
-        // TODO: implement....
+        try {
+            final Roster roster = plugin.getRosterManager().getRoster(from.toBareJID());
+            final List<JID> rosterJIDs = new LinkedList<JID>();
+            for (RosterItem rosterItem : roster.getRosterItems()) {
+                rosterJIDs.add(rosterItem.getJid().asBareJID());
+            }
+
+            if (rosterJIDs.isEmpty()){
+                log.info("No presence refresh, empty roster for user: " + from);
+                return;
+            } else {
+                log.info(String.format("Presence refresh for user %s, entries: %d", from, rosterJIDs.size()));
+                plugin.refreshPresenceInfo(from, rosterJIDs);
+            }
+        } catch (Exception e) {
+            log.error("Could not refresh presence for user: " + from, e);
+        }
     }
 
     /**

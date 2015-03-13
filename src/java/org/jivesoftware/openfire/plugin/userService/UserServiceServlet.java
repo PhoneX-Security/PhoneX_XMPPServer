@@ -21,20 +21,9 @@
 package org.jivesoftware.openfire.plugin.userService;
 
 import gnu.inet.encoding.Stringprep;
-
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.List;
-
-import javax.servlet.ServletConfig;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import org.bouncycastle.util.encoders.Base64;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
-
 import org.jivesoftware.admin.AuthCheckFilter;
 import org.jivesoftware.openfire.SharedGroupException;
 import org.jivesoftware.openfire.XMPPServer;
@@ -44,6 +33,15 @@ import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.Log;
 import org.xmpp.packet.JID;
+
+import javax.servlet.ServletConfig;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.List;
 
 
 /**
@@ -206,7 +204,8 @@ Log.info(String.format("REQ: %s, usrname=%s", type, username));
                     rosterJson = new String(Base64.decode(roster), "UTF-8");
                     ObjectMapper mapper = new ObjectMapper();
                     rosterList = mapper.readValue(rosterJson, new TypeReference<List<TransferRosterItem>>(){});
-                    plugin.syncRoster(username, rosterList);
+
+                    plugin.syncRosterInExecutor(username, rosterList);
                     replyMessage("ok",response, out);
                 } catch(Exception e){
                     Log.warn("Exception for user ["+username+"] JSON=", e);

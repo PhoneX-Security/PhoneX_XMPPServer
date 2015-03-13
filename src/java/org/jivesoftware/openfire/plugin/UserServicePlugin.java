@@ -32,6 +32,8 @@ import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
 import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
 import org.jivesoftware.openfire.lockout.LockOutManager;
+import org.jivesoftware.openfire.plugin.userService.JobRunnable;
+import org.jivesoftware.openfire.plugin.userService.TaskExecutor;
 import org.jivesoftware.openfire.plugin.userService.amqp.AMQPListener;
 import org.jivesoftware.openfire.plugin.userService.amqp.AMQPMsgListener;
 import org.jivesoftware.openfire.plugin.userService.push.PushService;
@@ -80,6 +82,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
     private PresenceManager presenceManager;
     private AMQPListener amqpListener;
     private PushService pushSvc;
+    private TaskExecutor executor;
 
     private String secret;
     private boolean enabled;
@@ -113,6 +116,8 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         routingTable = server.getRoutingTable();
         deliverer = server.getPacketDeliverer();
         pushSvc = new PushService(this);
+        executor = new TaskExecutor(this);
+        executor.start();
 
         secret = JiveGlobals.getProperty("plugin.userservice.secret", "");
         // If no secret key has been assigned to the user service yet, assign a random one.
@@ -154,6 +159,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         userManager = null;
         amqpListener.deinit();
         pushSvc.deinit();
+        executor.deinit();
 
         // Stop listening to system property events
         PropertyEventDispatcher.removeListener(this);
@@ -270,6 +276,25 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
     }
 
     /**
+     * Sync the roster with one specified in this request in background thread.
+     *
+     * @param username
+     * @param rosterList
+     */
+    public void syncRosterInExecutor(final String username, final List<TransferRosterItem> rosterList){
+        submit("rosterSync_" + username, new JobRunnable() {
+            @Override
+            public void run(UserServicePlugin plugin) {
+                try {
+                    syncRoster(username, rosterList);
+                } catch (Exception e) {
+                    log.error("Could not sync roster - exception", e);
+                }
+            }
+        });
+    }
+
+    /**
      * Sync the roster with one specified in this request.
      *
      * @param username
@@ -368,14 +393,14 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
             }
         }
 
+        // Protect current user.
+        createDefaultPrivacyList(username);
+
         // Update new roster entries added -probe presence and broadcast data.
         log.info(String.format("sync, new roster entries, size=%s, prober=%s", newRosterEntries.size(), username));
         if (!newRosterEntries.isEmpty()) {
             refreshPresenceInfo(prober, newRosterEntries);
         }
-
-        // Protect current user.
-        createDefaultPrivacyList(username);
     }
 
     /**
@@ -510,7 +535,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
      * @param master
      * @param newRosterEntries
      */
-    private void refreshPresenceInfo(JID master, Collection<JID> newRosterEntries) {
+    public void refreshPresenceInfo(JID master, Collection<JID> newRosterEntries) {
         try {
             for (JID probee : newRosterEntries) {
                 final String probeeStr = probee.getNode();
@@ -1000,5 +1025,13 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
     public AMQPListener getAmqpListener() {
         return amqpListener;
+    }
+
+    public TaskExecutor getExecutor() {
+        return executor;
+    }
+
+    public void submit(String name, JobRunnable job) {
+        executor.submit(name, job);
     }
 }

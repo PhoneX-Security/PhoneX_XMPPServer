@@ -1,5 +1,6 @@
-package org.jivesoftware.openfire.plugin.userService.push;
+package org.jivesoftware.openfire.plugin.userService;
 
+import org.jivesoftware.openfire.plugin.UserServicePlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,27 +11,27 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Executor engine.
  * Created by dusanklinec on 13.03.15.
  */
-public class PushExecutor extends Thread {
-    private static final Logger log = LoggerFactory.getLogger(PushExecutor.class);
+public class TaskExecutor extends Thread {
+    private static final Logger log = LoggerFactory.getLogger(TaskExecutor.class);
 
-    private final WeakReference<PushService> svcRef;
+    private final WeakReference<UserServicePlugin> plugRef;
     private volatile boolean isWorking = true;
-    private final ConcurrentLinkedQueue<PushJob> pushJobs = new ConcurrentLinkedQueue<PushJob>();
+    private final ConcurrentLinkedQueue<Job> jobs = new ConcurrentLinkedQueue<Job>();
 
     /**
      * Default constructor.
      * @param svc
      */
-    public PushExecutor(PushService svc) {
-        this.svcRef = new WeakReference<PushService>(svc);
-        this.setName("PushExecutor");
+    public TaskExecutor(UserServicePlugin svc) {
+        this.plugRef = new WeakReference<UserServicePlugin>(svc);
+        this.setName("TaskExecutor");
     }
 
     /**
      * Shutting down procedure.
      */
     public void deinit(){
-        log.info("Deinitializing executor thread");
+        log.info("Deinitializing job executor thread");
         isWorking = false;
     }
 
@@ -38,49 +39,49 @@ public class PushExecutor extends Thread {
      * Submit a job to the executor.
      * @param job
      */
-    public void submit(String name, PushRunnable job){
-        pushJobs.add(new PushJob(name, job));
+    public void submit(String name, JobRunnable job){
+        jobs.add(new Job(name, job));
     }
 
     /**
      * Submit a job to the executor.
-     * @param pushJob
+     * @param job
      */
-    public void submit(PushJob pushJob){
-        pushJobs.add(pushJob);
+    public void submit(Job job){
+        jobs.add(job);
     }
 
     public void run(){
-        log.info("Executor thread started.");
+        log.info("Job Executor thread started.");
 
 
         // Main working loop.
         while(isWorking){
-            PushService svc = svcRef.get();
+            UserServicePlugin svc = plugRef.get();
             if (svc == null){
                 isWorking = false;
                 log.info("Manager disappeared");
                 break;
             }
 
-            while(!pushJobs.isEmpty() && isWorking){
-                PushJob pushJob = pushJobs.poll();
-                if (pushJob == null){
+            while(!jobs.isEmpty() && isWorking){
+                Job job = jobs.poll();
+                if (job == null){
                     continue;
                 }
 
                 // Job is waiting for service reference.
-                pushJob.setSvc(svc);
+                job.setSvc(svc);
 
                 // Run the job.
-                if (pushJob.name != null){
-                    log.info("<job_"+ pushJob.name+">");
+                if (job.name != null){
+                    log.info("<job_"+job.name+">");
                 }
 
-                pushJob.run();
+                job.run();
 
-                if (pushJob.name != null){
-                    log.info("</job_"+ pushJob.name+">");
+                if (job.name != null){
+                    log.info("</job_"+job.name+">");
                 }
             }
 
@@ -98,16 +99,16 @@ public class PushExecutor extends Thread {
     /**
      * Base class for jobs execution.
      */
-    public static class PushJob implements Runnable {
-        private final PushRunnable job;
+    public static class Job implements Runnable {
+        private final JobRunnable job;
         private String name;
-        private WeakReference<PushService> svc;
+        private WeakReference<UserServicePlugin> svc;
 
-        public PushJob(PushRunnable job) {
+        public Job(JobRunnable job) {
             this.job = job;
         }
 
-        public PushJob(String name, PushRunnable job) {
+        public Job(String name, JobRunnable job) {
             this.name = name;
             this.job = job;
         }
@@ -121,8 +122,8 @@ public class PushExecutor extends Thread {
             }
         }
 
-        public void setSvc(PushService svc) {
-            this.svc = new WeakReference<PushService>(svc);
+        public void setSvc(UserServicePlugin svc) {
+            this.svc = new WeakReference<UserServicePlugin>(svc);
         }
     }
 }
