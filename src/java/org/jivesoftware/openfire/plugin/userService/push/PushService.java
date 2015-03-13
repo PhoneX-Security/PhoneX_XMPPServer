@@ -1,5 +1,6 @@
 package org.jivesoftware.openfire.plugin.userService.push;
 
+import org.dom4j.Element;
 import org.jivesoftware.openfire.IQHandlerInfo;
 import org.jivesoftware.openfire.IQRouter;
 import org.jivesoftware.openfire.XMPPServer;
@@ -27,17 +28,18 @@ import java.util.concurrent.PriorityBlockingQueue;
  */
 public class PushService extends IQHandler implements IQResultListener, ServerFeaturesProvider {
     private static final Logger log = LoggerFactory.getLogger(PushService.class);
-    private static final int ACK_STATUS_OK   =  1;
-    private static final int ACK_STATUS_ERR  = -1;
-    private static final int ACK_STATUS_FAIL = -2;
+    public static final int ACK_STATUS_OK   =  1;
+    public static final int ACK_STATUS_ERR  = -1;
+    public static final int ACK_STATUS_FAIL = -2;
 
     private        final PriorityBlockingQueue<PushSendRecord> sndQueue = new PriorityBlockingQueue<PushSendRecord>();
     private        final ConcurrentHashMap<String, PushSendRecord> ackWait = new ConcurrentHashMap<String, PushSendRecord>();
-    private volatile boolean senderWorking = true;
-    private Thread senderThread;
+    private        PushSender sender;
+    private        PushExecutor executor;
 
     private UserServicePlugin plugin;
     private PushQueryHandler pushQueryHandler;
+    private PresenceQueryHandler presenceQueryHandler;
 
     public PushService(UserServicePlugin plugin) {
         super("PushService");
@@ -53,22 +55,25 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         pushQueryHandler.setSvc(this);
         pushQueryHandler.init();
 
-        // Sender thread.
-        senderThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                runSenderThread();
-            }
-        });
+        // Init presence query handler.
+        presenceQueryHandler = new PresenceQueryHandler();
+        presenceQueryHandler.setSvc(this);
+        presenceQueryHandler.init();
 
-        senderThread.setName("PushSender");
-        senderThread.start();
+        // Sender thread.
+        sender = new PushSender(this);
+        sender.start();
+
+        // Executor thread.
+        executor = new PushExecutor(this);
+        executor.start();
     }
 
     public void deinit(){
-        // Shutdown message sender.
-        senderWorking = false;
+        sender.deinit();
+        executor.deinit();
         pushQueryHandler.deinit();
+        presenceQueryHandler.deinit();
 
         // Remove this as IQ listener.
         try {
@@ -77,71 +82,6 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         } catch (Exception ex) {
             log.error("Could not unregister from IQ router", ex);
         }
-    }
-
-    public void runSenderThread(){
-        log.info("Sender thread started.");
-        final IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
-
-        while(senderWorking){
-            while(!sndQueue.isEmpty()){
-                PushSendRecord sndRec = sndQueue.poll();
-                if (sndRec == null){
-                    continue;
-                }
-
-                final long curTime = System.currentTimeMillis();
-
-                // Compare time of sending with current time. If we have some time, take some nap.
-                if ((curTime - sndRec.getSendTstamp()) < 0){
-                    // Add back to queue and take a short nap.
-                    addSendRecord(sndRec, false);
-                    break;
-                }
-
-                // If sending counter is too high, drop off from the queue.
-                if (sndRec.getResendAttempt() > 30){
-                    log.info(String.format("Send counter too high for packet %s to %s, dropping", sndRec.getPacketId(), sndRec.getDestination()));
-
-                    // Store delivery result to database so it is not tried to deliver again.
-                    persistAck(sndRec, ACK_STATUS_FAIL);
-                    continue;
-                }
-
-                // Send
-                try {
-                    // Is there still valid route to given destination?
-                    boolean hasClientRoute = plugin.getRoutingTable().hasClientRoute(sndRec.getDestination());
-                    if (!hasClientRoute){
-                        log.info(String.format("Client route disappeared meanwhile. Dropping request for id %s user %s", sndRec.getPacketId(), sndRec.getDestination()));
-                        continue;
-                    }
-
-                    sndRec.incSendCtr();
-                    iqRouter.addIQResultListener(sndRec.getPacketId(), this, 1000 * 30);
-                    iqRouter.route(sndRec.getPacket());
-
-                    log.info(String.format("Routing packet to: %s, packetId=%s", sndRec.getDestination(), sndRec.getPacketId()));
-                    plugin.getRoutingTable().routePacket(sndRec.getDestination(), sndRec.getPacket(), true);
-                    sndRec.setLastSendTstamp(curTime);
-
-                    // Store this record to the waiting map where it waits for ack or for timeout.
-                    ackWait.put(sndRec.getPacketId(), sndRec);
-                    log.info(String.format("Packet sent, ackWaitSize: %d", ackWait.size()));
-                } catch(Exception ex){
-                    log.error("Error during sending a packet", ex);
-                }
-            }
-
-            try {
-                Thread.sleep(150);
-            } catch (Exception e) {
-                log.error("Sleep interrupted", e);
-                break;
-            }
-        }
-
-        log.info("Sender thread finishing.");
     }
 
     /**
@@ -295,6 +235,13 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         this.sendPush(to, msgx);
     }
 
+    /**
+     * Builds wrapping IQ packet for push message.
+     * @param to
+     * @param msg
+     * @return
+     * @throws JSONException
+     */
     private PushIq buildPushNotification(JID to, SimplePushMessage msg) throws JSONException {
         final PushIq pushNotif = new PushIq();
         pushNotif.setFrom(plugin.getServer().getServerInfo().getXMPPDomain());
@@ -304,6 +251,11 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         return pushNotif;
     }
 
+    /**
+     * Sends given push message to all routes associated with JID (enqueues for sending).
+     * @param to
+     * @param msg
+     */
     private void sendPush(JID to, SimplePushMessage msg) {
         final String domain = plugin.getServer().getServerInfo().getXMPPDomain();
 
@@ -313,6 +265,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
 
             // The user sent a directed presence to an entity
             // Broadcast it to all connected resources
+            int sendCtr = 0;
             for (JID jid : plugin.getRoutingTable().getRoutes(to.asBareJID(), new JID(domain))) {
                 // Store send requests to the sending queue so it handles re-sends and acknowledgement.
                 final PushIq pushNotif = buildPushNotification(jid, msg);
@@ -323,7 +276,10 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
 
                 // Add record to the queue, possibly removing old ones if desired.
                 addSendRecord(sndRec, true);
+                sendCtr += 1;
             }
+
+            log.info(String.format("Sending to: %s, number of routes: %d", to, sendCtr));
         } catch (Exception e) {
             // Well we just don't care then.
             log.error("Exception in routingTable send", e);
@@ -336,6 +292,20 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         log.info(String.format("Handle IQ packet_type: %s", iqType));
         if (IQ.Type.result.equals(iqType)) {
             return null;
+        }
+
+        final Element elem = packet.getChildElement();
+        if (elem == null){
+            return null;
+        }
+
+        final String tagName = elem.getName();
+        if (PushIq.ELEMENT_NAME.equals(tagName)){
+            log.info("push tag");
+        } else if (PushQueryIq.ELEMENT_NAME.equals(tagName)){
+            return pushQueryHandler.handleIQ(packet);
+        } else if (PresenceQueryIq.ELEMENT_NAME.equals(tagName)){
+            return presenceQueryHandler.handleIQ(packet);
         }
 
         return null;
@@ -491,15 +461,35 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
     }
 
     /**
+     * Send recent push notifications for this JID in executor.
+     * Called after on-connect or on-demand event. Transfer only non-ACKed push messages.
+     * If there are no such messages, return.
+     * @param from
+     */
+    public void sendRecentPushNotificationsInExecutor(final JID from){
+        executor.submit("pushSend", new PushRunnable() {
+            @Override
+            public void run(PushService svc) {
+                svc.sendRecentPushNotifications(from);
+            }
+        });
+    }
+
+    /**
      * Send recent push notifications for this JID.
      * Called after on-connect or on-demand event. Transfer only non-ACKed push messages.
      * If there are no such messages, return.
-     * @param to
+     * @param from
      */
-    public void sendRecentPushNotifications(JID to){
-        final Collection<DbPushMessage> msgs = DbEntityManager.getPushByUserAndAction(to.toBareJID(), null);
+    public void sendRecentPushNotifications(JID from){
+        if (from == null){
+            log.info("Empty address");
+            return;
+        }
+
+        final Collection<DbPushMessage> msgs = DbEntityManager.getPushByUserAndAction(from.toBareJID(), null);
         final long tstamp = System.currentTimeMillis();
-        final SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
+        final SimplePushMessage msgx = new SimplePushMessage(from.toBareJID(), tstamp);
 
         int added = 0;
         for (DbPushMessage msg : msgs) {
@@ -518,11 +508,39 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         }
 
         if (added == 0){
-            log.info(String.format("Nothing to send for JID: %s", to));
+            log.info(String.format("Nothing from send for JID: %s", from));
         }
 
-        // Send to all connected devices/resources.
-        sendPush(to.asBareJID(), msgx);
+        // Send from all connected devices/resources.
+        log.info(String.format("Sending push package from %s size %d", from, added));
+        sendPush(from.asBareJID(), msgx);
+    }
+
+    /**
+     * Send all relevant presence information to this user so he can refresh its presence status info.
+     * @param from
+     */
+    public void sendPresenceInfoInExecutor(final JID from){
+        executor.submit("presenceInfo", new PushRunnable() {
+            @Override
+            public void run(PushService svc) {
+                svc.sendPresenceInfo(from);
+            }
+        });
+    }
+
+    /**
+     * Send all relevant presence information to this user so he can refresh its presence status info.
+     * @param from
+     */
+    public void sendPresenceInfo(JID from) {
+        if (from == null){
+            log.info("Empty address");
+            return;
+        }
+
+        log.info(String.format("Going to send presence for roster for: %s", from));
+        // TODO: implement....
     }
 
     /**

@@ -20,6 +20,18 @@ public class DbEntityManager {
     private static final String SQL_DELETE_MESSAGES_USR="DELETE from ofPushMessages WHERE msgID msgAction=? AND forUser=?";
 
     /**
+     * Helper method for timestamp extraction from NULL field.
+     * @param rs
+     * @param colname
+     * @return
+     * @throws SQLException
+     */
+    public static Long getTimeStamp(ResultSet rs, String colname) throws SQLException {
+        final Date date = rs.getDate(colname);
+        return date == null ? null : date.getTime();
+    }
+
+    /**
      * Builds DbPushMessage from result set.
      * @param rs
      * @return
@@ -36,7 +48,7 @@ public class DbEntityManager {
             msg.setId(rs.getLong(DbPushMessage.FIELD_ID));
             msg.setAction(rs.getString(DbPushMessage.FIELD_ACTION));
             msg.setTstamp(rs.getDate(DbPushMessage.FIELD_TIME).getTime());
-            msg.setExpireTstamp(rs.getDate(DbPushMessage.FIELD_EXPIRE_TIME).getTime());
+            msg.setExpireTstamp(getTimeStamp(rs, DbPushMessage.FIELD_EXPIRE_TIME));
             msg.setToUser(rs.getString(DbPushMessage.FIELD_USER));
             msg.setToResource(rs.getString(DbPushMessage.FIELD_RESOURCE));
             msg.setDurable(rs.getBoolean(DbPushMessage.FIELD_IS_DURABLE));
