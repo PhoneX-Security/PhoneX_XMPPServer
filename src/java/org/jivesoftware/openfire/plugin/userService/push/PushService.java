@@ -108,6 +108,10 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                     log.info("Login event registered.");
                     pushNewCertEvent(userName, obj, msg);
 
+                } else if (DHKeyUsedEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                    log.info("DHKey used event");
+                    pushDHKeyUsed(userName, obj, msg);
+
                 } else if (AuthCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)){
                     log.info("AuthCheck request event registered.");
 
@@ -116,6 +120,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
 
                 } else if (LicenseCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)){
                     log.info("license check request event registered.");
+                    pushLicenseCheck(userName, obj, msg);
 
                 } else if (MissedCallEventMessage.PUSH.equalsIgnoreCase(pushAction)){
                     log.info("missed call event registered.");
@@ -125,6 +130,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
 
                 } else if (VersionCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)){
                     log.info("new version event registered.");
+                    pushVersionCheck(userName, obj, msg);
 
                 } else {
                     log.info(String.format("Unknown push event: %s", pushAction));
@@ -133,6 +139,25 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         } catch(Exception e){
             log.error("Exception in push request from queue handling", e);
         }
+    }
+
+    /**
+     * Stores push message part to the database and sends to the given destination.
+     * @param to
+     * @param msgx
+     * @param evt
+     */
+    public void pushGenericMessage(final JID to, SimplePushMessage msgx, SimplePushPart evt){
+        // Delete all previous & older notifications and insert this new one.
+        final DbPushMessage dbMsg = evt.toDbEntity();
+        dbMsg.setToUser(to.toBareJID());
+        dbMsg.setToResource(to.getResource());
+
+        Long id = DbEntityManager.persistDbMessage(dbMsg, true);
+        evt.setMessageId(id);
+
+        msgx.addPart(evt);
+        this.sendPush(to, msgx);
     }
 
     /**
@@ -149,16 +174,58 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
         final ClistSyncEventMessage evt = new ClistSyncEventMessage(tstamp);
 
-        // Delete all previous & older notifications and insert this new one.
-        final DbPushMessage dbMsg = evt.toDbEntity();
-        dbMsg.setToUser(to.toBareJID());
-        dbMsg.setToResource(to.getResource());
+        pushGenericMessage(to, msgx, evt);
+    }
 
-        Long id = DbEntityManager.persistDbMessage(dbMsg, true);
-        evt.setMessageId(id);
+    /**
+     * Entry point for push message. This method gets called when plugin receives message to push dhKeyUsed message
+     * to designated user.
+     * @param user
+     * @throws JSONException
+     */
+    public void pushDHKeyUsed(String user, JSONObject obj, JSONObject msg) throws JSONException {
+        final JID to = new JID(user);
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
 
-        msgx.addPart(evt);
-        this.sendPush(to, msgx);
+        // Build push action.
+        SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
+        final DHKeyUsedEventMessage evt = new DHKeyUsedEventMessage(tstamp);
+
+        pushGenericMessage(to, msgx, evt);
+    }
+
+    /**
+     * Entry point for push message. This method gets called when plugin receives message to push version check message.
+     * to designated user.
+     * @param user
+     * @throws JSONException
+     */
+    public void pushVersionCheck(String user, JSONObject obj, JSONObject msg) throws JSONException {
+        final JID to = new JID(user);
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+
+        // Build push action.
+        SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
+        final VersionCheckEventMessage evt = new VersionCheckEventMessage(tstamp);
+
+        pushGenericMessage(to, msgx, evt);
+    }
+
+    /**
+     * Entry point for push message. This method gets called when plugin receives message to push license check message.
+     * to designated user.
+     * @param user
+     * @throws JSONException
+     */
+    public void pushLicenseCheck(String user, JSONObject obj, JSONObject msg) throws JSONException {
+        final JID to = new JID(user);
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+
+        // Build push action.
+        SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
+        final LicenseCheckEventMessage evt = new LicenseCheckEventMessage(tstamp);
+
+        pushGenericMessage(to, msgx, evt);
     }
 
     /**

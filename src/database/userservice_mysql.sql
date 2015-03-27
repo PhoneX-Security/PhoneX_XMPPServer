@@ -31,3 +31,9 @@ CREATE TABLE ofPushDelivery (
            REFERENCES ofPushMessages(msgId)
            ON DELETE CASCADE
 ) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
+
+CREATE TABLE ofPushApple (
+	JID VARCHAR(200) NOT NULL,
+	devicetoken CHAR(64) NOT NULL,
+  PRIMARY KEY (JID)
+);
