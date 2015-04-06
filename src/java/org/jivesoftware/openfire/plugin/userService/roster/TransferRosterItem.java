@@ -6,7 +6,6 @@
 
 package org.jivesoftware.openfire.plugin.userService.roster;
 
-import java.util.Objects;
 import org.codehaus.jackson.annotate.JsonAutoDetect;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -36,47 +35,33 @@ public class TransferRosterItem {
     public String groups;
 
     @Override
-    public int hashCode() {
-        int hash = 3;
-        hash = 17 * hash + Objects.hashCode(this.jid);
-        hash = 17 * hash + Objects.hashCode(this.name);
-        hash = 17 * hash + Objects.hashCode(this.subscription);
-        hash = 17 * hash + Objects.hashCode(this.recvStatus);
-        hash = 17 * hash + Objects.hashCode(this.askStatus);
-        hash = 17 * hash + Objects.hashCode(this.groups);
-        return hash;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        TransferRosterItem that = (TransferRosterItem) o;
+
+        if (askStatus != null ? !askStatus.equals(that.askStatus) : that.askStatus != null) return false;
+        if (groups != null ? !groups.equals(that.groups) : that.groups != null) return false;
+        if (jid != null ? !jid.equals(that.jid) : that.jid != null) return false;
+        if (name != null ? !name.equals(that.name) : that.name != null) return false;
+        if (recvStatus != null ? !recvStatus.equals(that.recvStatus) : that.recvStatus != null) return false;
+        if (subscription != null ? !subscription.equals(that.subscription) : that.subscription != null) return false;
+
+        return true;
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        final TransferRosterItem other = (TransferRosterItem) obj;
-        if (!Objects.equals(this.jid, other.jid)) {
-            return false;
-        }
-        if (!Objects.equals(this.name, other.name)) {
-            return false;
-        }
-        if (!Objects.equals(this.subscription, other.subscription)) {
-            return false;
-        }
-        if (!Objects.equals(this.recvStatus, other.recvStatus)) {
-            return false;
-        }
-        if (!Objects.equals(this.askStatus, other.askStatus)) {
-            return false;
-        }
-        if (!Objects.equals(this.groups, other.groups)) {
-            return false;
-        }
-        return true;
+    public int hashCode() {
+        int result = jid != null ? jid.hashCode() : 0;
+        result = 31 * result + (name != null ? name.hashCode() : 0);
+        result = 31 * result + (subscription != null ? subscription.hashCode() : 0);
+        result = 31 * result + (recvStatus != null ? recvStatus.hashCode() : 0);
+        result = 31 * result + (askStatus != null ? askStatus.hashCode() : 0);
+        result = 31 * result + (groups != null ? groups.hashCode() : 0);
+        return result;
     }
-    
+
     @Override
     public String toString() {
         return "TransferRosterItem{" + "jid=" + jid + ", name=" + name + ", subscription=" + subscription + ", recvStatus=" + recvStatus + ", askStatus=" + askStatus + ", groups=" + groups + '}';

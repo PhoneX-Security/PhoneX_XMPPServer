@@ -8,6 +8,7 @@
                  org.jivesoftware.util.LocaleUtils,
                  org.jivesoftware.util.StringUtils,
                  org.xmpp.packet.JID,
+                 org.jivesoftware.openfire.plugin.userService.geoip.GeoIpHolder,
                  org.jivesoftware.openfire.plugin.UserServicePlugin,
                  net.phonex.pub.proto.PushNotifications,
                  org.xmpp.packet.Presence"%>
@@ -193,6 +194,25 @@
 
     <td width="1%" nowrap>
         <%= sess.getHostAddress() %>
+        <%
+            String ip = sess.getHostAddress();
+            GeoIpHolder geoip = UserServicePlugin.getGeoIp(ip);
+            String geoipString = "";
+            if (geoip != null) {
+                geoipString = geoip.toString();
+        %>
+                <br/>
+                <%= StringUtils.escapeHTMLTags(geoipString) %>
+        <%
+            } else {
+        %>
+            <br/>?
+        <%
+            }
+        %>
+            <br/>
+            <%= JiveGlobals.formatDateTime(sess.getCreationDate()) %><br/>
+            <%= JiveGlobals.formatDateTime(sess.getLastActiveDate()) %>
     </td>
 
     <td width="1%" nowrap align="center" style="border-right:1px #ccc solid;">

@@ -22,6 +22,7 @@
                  org.jivesoftware.openfire.session.ClientSession,
                  org.jivesoftware.util.JiveGlobals,
                  org.jivesoftware.util.ParamUtils,
+                 org.jivesoftware.openfire.plugin.userService.geoip.GeoIpHolder,
                  java.util.Collection"
     errorPage="error.jsp"
 %>

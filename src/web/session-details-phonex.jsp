@@ -26,6 +26,7 @@
                  org.jivesoftware.util.JiveGlobals,
                  org.jivesoftware.util.ParamUtils,
                  org.jivesoftware.util.StringUtils,
+                 org.jivesoftware.openfire.plugin.userService.geoip.GeoIpHolder,
                  org.jivesoftware.openfire.plugin.UserServicePlugin,
                  net.phonex.pub.proto.PushNotifications,
                  java.text.NumberFormat,

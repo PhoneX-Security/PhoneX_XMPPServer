@@ -20,6 +20,8 @@
 package org.jivesoftware.openfire.plugin;
 
 import com.google.protobuf.UnknownFieldSet;
+import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.geoip2.model.CityResponse;
 import com.rabbitmq.client.QueueingConsumer;
 import net.phonex.pub.proto.PushNotifications;
 import org.dom4j.Element;
@@ -36,6 +38,7 @@ import org.jivesoftware.openfire.plugin.userService.JobRunnable;
 import org.jivesoftware.openfire.plugin.userService.TaskExecutor;
 import org.jivesoftware.openfire.plugin.userService.amqp.AMQPListener;
 import org.jivesoftware.openfire.plugin.userService.amqp.AMQPMsgListener;
+import org.jivesoftware.openfire.plugin.userService.geoip.GeoIpHolder;
 import org.jivesoftware.openfire.plugin.userService.push.PushService;
 import org.jivesoftware.openfire.plugin.userService.roster.TransferRosterItem;
 import org.jivesoftware.openfire.privacy.PrivacyList;
@@ -61,6 +64,7 @@ import org.xmpp.packet.Presence;
 import javax.xml.bind.DatatypeConverter;
 import java.io.File;
 import java.io.StringReader;
+import java.net.InetAddress;
 import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
@@ -90,6 +94,10 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
     private Element standardPrivacyListElement;
     private static final String standardPLName = "phonex_roster";
+
+    private static long lastGeoIpRefreshTime = 0;
+    private static String geoIpCityDb = "/opt/geoip/GeoLite2-City.mmdb";
+    private static DatabaseReader geoipReader;
 
     // Warning! This privacy list block self publishing since I don't have myself in my 
     // roster, presence update among my devices is blocked...
@@ -997,6 +1005,34 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         } catch (Exception ex) {
             log.warn("Exception in processing a new message");
         }
+    }
+
+    /**
+     * Translates IP address to GeoIP record.
+     * @param ip
+     * @return
+     */
+    public static GeoIpHolder getGeoIp(String ip){
+        try {
+            final long curTime = System.currentTimeMillis();
+            if (geoipReader == null || (curTime - lastGeoIpRefreshTime) > 1000*60*10){
+                geoipReader = new DatabaseReader.Builder(new File(geoIpCityDb)).build();
+                lastGeoIpRefreshTime = curTime;
+            }
+
+            final InetAddress addr = InetAddress.getByName(ip);
+            final CityResponse city = geoipReader.city(addr);
+            if (city != null){
+                return GeoIpHolder.build(city);
+            }
+
+            return GeoIpHolder.build(geoipReader.country(addr));
+
+        } catch (Exception e) {
+            log.error("Exception in geoip translation, make sure " + geoIpCityDb + " exists.", e);
+        }
+
+        return null;
     }
 
     public UserManager getUserManager() {
