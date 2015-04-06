@@ -128,9 +128,13 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                 } else if (NewFileEventMessage.PUSH.equalsIgnoreCase(pushAction)){
                     log.info("new file event registered.");
 
-                } else if (VersionCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                } else if (VersionCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)) {
                     log.info("new version event registered.");
                     pushVersionCheck(userName, obj, msg);
+
+                } else if (ContactCertUpdateEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                    log.info("contact certificate update event registered.");
+                    pushContactCertUpdate(userName, obj, msg);
 
                 } else {
                     log.info(String.format("Unknown push event: %s", pushAction));
@@ -207,6 +211,23 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         // Build push action.
         SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
         final VersionCheckEventMessage evt = new VersionCheckEventMessage(tstamp);
+
+        pushGenericMessage(to, msgx, evt);
+    }
+
+    /**
+     * Entry point for push message. This method gets called when plugin receives message to push contact certificate update message
+     * to designated user.
+     * @param user
+     * @throws JSONException
+     */
+    public void pushContactCertUpdate(String user, JSONObject obj, JSONObject msg) throws JSONException {
+        final JID to = new JID(user);
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+
+        // Build push action.
+        SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
+        final ContactCertUpdateEventMessage evt = new ContactCertUpdateEventMessage(tstamp);
 
         pushGenericMessage(to, msgx, evt);
     }
