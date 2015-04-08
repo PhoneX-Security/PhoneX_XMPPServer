@@ -557,7 +557,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                 final String probeeStr = probee.getNode();
                 final boolean isLocal = server.isLocal(probee);
 
-                log.info(String.format("probee: %s probeeStr: %s, prober: %s proberStr %s local %s",
+                log.debug(String.format("probee: %s probeeStr: %s, prober: %s proberStr %s local %s",
                         probee, probeeStr, master, master.toBareJID(), isLocal));
 
                 // Update for user owning the contact list.
