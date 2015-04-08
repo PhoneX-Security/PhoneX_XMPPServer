@@ -34,7 +34,7 @@ import java.util.Iterator;
  */
 public class ClientStateService extends IQHandler implements ServerFeaturesProvider, PacketInterceptor {
     private static final Logger log = LoggerFactory.getLogger(ClientStateService.class);
-    private static final String INACTIVE_KEY = "phx_inactive";
+    public static final String INACTIVE_KEY = "phx_inactive";
 
     private UserServicePlugin plugin;
 

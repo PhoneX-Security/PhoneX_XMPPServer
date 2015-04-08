@@ -47,6 +47,7 @@ import org.jivesoftware.openfire.privacy.PrivacyListManager;
 import org.jivesoftware.openfire.roster.Roster;
 import org.jivesoftware.openfire.roster.RosterItem;
 import org.jivesoftware.openfire.roster.RosterManager;
+import org.jivesoftware.openfire.session.LocalSession;
 import org.jivesoftware.openfire.session.Session;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
@@ -1040,6 +1041,20 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         }
 
         return null;
+    }
+
+    /**
+     * Returns XEP-0352 activity flag stored for current session.
+     * @param session
+     * @return
+     */
+    public static Boolean getInactivity(Session session){
+        if (!(session instanceof LocalSession)){
+            return null;
+        }
+
+        final LocalSession locSess = (LocalSession) session;
+        return (Boolean) locSess.getSessionData(ClientStateService.INACTIVE_KEY);
     }
 
     public UserManager getUserManager() {

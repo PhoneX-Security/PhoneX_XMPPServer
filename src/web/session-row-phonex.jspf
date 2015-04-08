@@ -213,6 +213,15 @@
             <br/>
             <%= JiveGlobals.formatDateTime(sess.getCreationDate()) %><br/>
             <%= JiveGlobals.formatDateTime(sess.getLastActiveDate()) %>
+        <%
+            Boolean inactivity = UserServicePlugin.getInactivity(sess);
+            if (inactivity != null){
+            %>
+            <br/>
+            <%= StringUtils.escapeHTMLTags(String.format("Client state: %s", inactivity ? "Inactive" : "Active")) %>
+            <%
+            }
+        %>
     </td>
 
     <td width="1%" nowrap align="center" style="border-right:1px #ccc solid;">
