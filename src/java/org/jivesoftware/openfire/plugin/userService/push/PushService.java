@@ -592,8 +592,22 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                 msgx.addPart(evt);
                 added += 1;
 
-            } else if (NewCertEventMessage.PUSH.equals(action)){
+            } else if (NewCertEventMessage.PUSH.equals(action)) {
                 final NewCertEventMessage evt = new NewCertEventMessage(msg.getTstamp(), Long.parseLong(msg.getAux1()), msg.getAux2());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
+                added += 1;
+
+            } else if (ContactCertUpdateEventMessage.PUSH.equals(action)) {
+                final ContactCertUpdateEventMessage evt = new ContactCertUpdateEventMessage(msg.getTstamp());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
+                added += 1;
+
+            } else if (DHKeyUsedEventMessage.PUSH.equals(action)){
+                final DHKeyUsedEventMessage evt = new DHKeyUsedEventMessage(msg.getTstamp());
                 evt.setMessageId(msg.getId());
 
                 msgx.addPart(evt);
@@ -636,9 +650,10 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
             return;
         }
 
-        log.info(String.format("Going to send presence for roster for: %s", from));
         try {
-            final Roster roster = plugin.getRosterManager().getRoster(from.toBareJID());
+            log.info(String.format("Going to send presence for roster for: %s, node: %s", from, from.getNode()));
+
+            final Roster roster = plugin.getRosterManager().getRoster(from.getNode());
             final List<JID> rosterJIDs = new LinkedList<JID>();
             for (RosterItem rosterItem : roster.getRosterItems()) {
                 rosterJIDs.add(rosterItem.getJid().asBareJID());
