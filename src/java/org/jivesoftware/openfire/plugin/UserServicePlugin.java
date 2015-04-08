@@ -38,6 +38,7 @@ import org.jivesoftware.openfire.plugin.userService.JobRunnable;
 import org.jivesoftware.openfire.plugin.userService.TaskExecutor;
 import org.jivesoftware.openfire.plugin.userService.amqp.AMQPListener;
 import org.jivesoftware.openfire.plugin.userService.amqp.AMQPMsgListener;
+import org.jivesoftware.openfire.plugin.userService.clientState.ClientStateService;
 import org.jivesoftware.openfire.plugin.userService.geoip.GeoIpHolder;
 import org.jivesoftware.openfire.plugin.userService.push.PushService;
 import org.jivesoftware.openfire.plugin.userService.roster.TransferRosterItem;
@@ -79,6 +80,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
     private static final Logger log = LoggerFactory.getLogger(UserServicePlugin.class);
 
     private UserManager userManager;
+    private SessionManager sessionManager;
     private RosterManager rosterManager;
     private XMPPServer server;
     private RoutingTable routingTable;
@@ -86,6 +88,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
     private PresenceManager presenceManager;
     private AMQPListener amqpListener;
     private PushService pushSvc;
+    private ClientStateService cstateSvc;
     private TaskExecutor executor;
 
     private String secret;
@@ -119,11 +122,13 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
     public void initializePlugin(PluginManager manager, File pluginDirectory) {
         server = XMPPServer.getInstance();
         userManager = server.getUserManager();
+        sessionManager = server.getSessionManager();
         rosterManager = server.getRosterManager();
         presenceManager = server.getPresenceManager();
         routingTable = server.getRoutingTable();
         deliverer = server.getPacketDeliverer();
         pushSvc = new PushService(this);
+        cstateSvc = new ClientStateService(this);
         executor = new TaskExecutor(this);
         executor.start();
 
@@ -145,6 +150,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
         // Register this as an IQ handler
         pushSvc.init();
+        cstateSvc.init();
 
         // Start AMQP listener
         amqpListener = new AMQPListener();
@@ -167,6 +173,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         userManager = null;
         amqpListener.deinit();
         pushSvc.deinit();
+        cstateSvc.deinit();
         executor.deinit();
 
         // Stop listening to system property events
@@ -1069,5 +1076,17 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
     public void submit(String name, JobRunnable job) {
         executor.submit(name, job);
+    }
+
+    public ClientStateService getCstateSvc() {
+        return cstateSvc;
+    }
+
+    public SessionManager getSessionManager() {
+        return sessionManager;
+    }
+
+    public PushService getPushSvc() {
+        return pushSvc;
     }
 }
