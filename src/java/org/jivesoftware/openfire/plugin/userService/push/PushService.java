@@ -585,15 +585,15 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         int added = 0;
         for (DbPushMessage msg : msgs) {
             final String action = msg.getAction();
-            if (ClistSyncEventMessage.PUSH.equals(action)){
-                final ClistSyncEventMessage evt = new ClistSyncEventMessage(msg.getTstamp());
+            if (AuthCheckEventMessage.PUSH.equals(action)){
+                final AuthCheckEventMessage evt = new AuthCheckEventMessage(msg.getTstamp());
                 evt.setMessageId(msg.getId());
 
                 msgx.addPart(evt);
                 added += 1;
 
-            } else if (NewCertEventMessage.PUSH.equals(action)) {
-                final NewCertEventMessage evt = new NewCertEventMessage(msg.getTstamp(), Long.parseLong(msg.getAux1()), msg.getAux2());
+            } else if (ClistSyncEventMessage.PUSH.equals(action)){
+                final ClistSyncEventMessage evt = new ClistSyncEventMessage(msg.getTstamp());
                 evt.setMessageId(msg.getId());
 
                 msgx.addPart(evt);
@@ -606,14 +606,57 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                 msgx.addPart(evt);
                 added += 1;
 
-            } else if (DHKeyUsedEventMessage.PUSH.equals(action)){
+            } else if (ContactRequestEventMessage.PUSH.equals(action)){
+                final ContactRequestEventMessage evt = new ContactRequestEventMessage(msg.getTstamp());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
+                added += 1;
+
+            } else if (DHKeyUsedEventMessage.PUSH.equals(action)) {
                 final DHKeyUsedEventMessage evt = new DHKeyUsedEventMessage(msg.getTstamp());
                 evt.setMessageId(msg.getId());
 
                 msgx.addPart(evt);
                 added += 1;
 
-            } else {
+            } else if (LicenseCheckEventMessage.PUSH.equals(action)) {
+                final LicenseCheckEventMessage evt = new LicenseCheckEventMessage(msg.getTstamp());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
+                added += 1;
+
+            } else if (MissedCallEventMessage.PUSH.equals(action)){
+                final MissedCallEventMessage evt = new MissedCallEventMessage(msg.getTstamp());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
+                added += 1;
+
+            } else if (NewCertEventMessage.PUSH.equals(action)) {
+                final NewCertEventMessage evt = new NewCertEventMessage(msg.getTstamp(), Long.parseLong(msg.getAux1()), msg.getAux2());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
+                added += 1;
+
+            } else if (NewFileEventMessage.PUSH.equals(action)){
+                final NewFileEventMessage evt = new NewFileEventMessage(msg.getTstamp());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
+                added += 1;
+
+            } else if (VersionCheckEventMessage.PUSH.equals(action)){
+                final VersionCheckEventMessage evt = new VersionCheckEventMessage(msg.getTstamp());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
+                added += 1;
+            }
+
+            else {
                 log.error(String.format("Unknown DB message action %s", action));
             }
         }
