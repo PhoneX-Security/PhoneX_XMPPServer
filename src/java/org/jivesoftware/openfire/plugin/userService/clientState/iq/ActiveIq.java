@@ -1,9 +1,11 @@
-package org.jivesoftware.openfire.plugin.userService.clientState;
+package org.jivesoftware.openfire.plugin.userService.clientState.iq;
 
 import org.jivesoftware.openfire.IQHandlerInfo;
 import org.xmpp.packet.IQ;
 
 /**
+ * Sent by client when user is actively working with the application.
+ * Notifies the server user wants to receive presence updates.
  * Created by dusanklinec on 06.04.15.
  */
 public class ActiveIq extends IQ {
@@ -15,6 +17,6 @@ public class ActiveIq extends IQ {
      * Default constructor.
      */
     public ActiveIq() {
-        super(IQ.Type.get);
+        super(IQ.Type.set);
     }
 }

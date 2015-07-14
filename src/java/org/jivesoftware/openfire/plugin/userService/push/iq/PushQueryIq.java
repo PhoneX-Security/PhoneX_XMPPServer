@@ -1,4 +1,4 @@
-package org.jivesoftware.openfire.plugin.userService.push.messages;
+package org.jivesoftware.openfire.plugin.userService.push.iq;
 
 import org.jivesoftware.openfire.IQHandlerInfo;
 import org.xmpp.packet.IQ;

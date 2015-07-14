@@ -1,6 +1,6 @@
 package org.jivesoftware.openfire.plugin.userService.push;
 
-import org.jivesoftware.openfire.plugin.userService.push.messages.PushIq;
+import org.jivesoftware.openfire.plugin.userService.push.iq.PushIq;
 import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushMessage;
 import org.json.JSONException;
 import org.xmpp.packet.JID;

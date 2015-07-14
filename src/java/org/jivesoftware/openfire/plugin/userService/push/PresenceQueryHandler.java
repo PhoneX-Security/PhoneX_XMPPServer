@@ -4,7 +4,7 @@ import org.jivesoftware.openfire.IQHandlerInfo;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.handler.IQHandler;
-import org.jivesoftware.openfire.plugin.userService.push.messages.PresenceQueryIq;
+import org.jivesoftware.openfire.plugin.userService.push.iq.PresenceQueryIq;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.IQ;

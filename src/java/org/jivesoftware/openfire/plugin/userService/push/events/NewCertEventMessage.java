@@ -1,6 +1,7 @@
-package org.jivesoftware.openfire.plugin.userService.push.messages;
+package org.jivesoftware.openfire.plugin.userService.push.events;
 
-import org.jivesoftware.openfire.plugin.userService.push.DbPushMessage;
+import org.jivesoftware.openfire.plugin.userService.db.DbPushMessage;
+import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushPart;
 import org.json.JSONException;
 import org.json.JSONObject;
 

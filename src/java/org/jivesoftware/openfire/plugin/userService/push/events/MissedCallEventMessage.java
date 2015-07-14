@@ -1,4 +1,6 @@
-package org.jivesoftware.openfire.plugin.userService.push.messages;
+package org.jivesoftware.openfire.plugin.userService.push.events;
+
+import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushPart;
 
 /**
  * Push message event signalizing server-stored contactlist has changed and should be reloaded on end devices.

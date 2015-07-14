@@ -1,7 +1,7 @@
 # $Revision$
 # $Date$
 
-INSERT INTO ofVersion (name, version) VALUES ('userservice', 1);
+INSERT INTO ofVersion (name, version) VALUES ('userservice', 2);
 
 CREATE TABLE ofPushMessages (
    msgId            BIGINT            NOT NULL AUTO_INCREMENT,
@@ -32,8 +32,44 @@ CREATE TABLE ofPushDelivery (
            ON DELETE CASCADE
 ) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
 
-CREATE TABLE ofPushApple (
-	JID VARCHAR(200) NOT NULL,
-	devicetoken CHAR(64) NOT NULL,
-  PRIMARY KEY (JID)
-);
+CREATE TABLE ofPushTokenApple (
+	ofUser        VARCHAR(255) NOT NULL,
+	ofResource    VARCHAR(255) NOT NULL,
+	ofDeviceToken VARCHAR(128) NOT NULL,
+	ofFakeUdid    VARCHAR(128) NOT NULL,
+	ofVersion     VARCHAR(32)  NULL,
+	ofAppVersion  VARCHAR(32)  NULL,
+	ofOsVersion   VARCHAR(32)  NULL,
+	ofLangs       VARCHAR(255) NULL,
+	ofDebug       TINYINT      NOT NULL DEFAULT 0,
+	ofLastUpdate  DATETIME     NOT NULL,
+	ofAuxJson     TEXT         NULL,
+  PRIMARY KEY (ofUser, ofResource)
+) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
+
+CREATE TABLE ofPhxLastActivity (
+   ofUser         VARCHAR(255) NOT NULL,
+   ofResource     VARCHAR(255) NOT NULL,
+   ofActTime      DATETIME     NOT NULL,
+   ofLastStatus   INT          NOT NULL DEFAULT 1,
+   PRIMARY KEY (ofUser, ofResource)
+) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
+
+CREATE TABLE ofPhxPlatformMessages (
+   ofMsgId            BIGINT            NOT NULL AUTO_INCREMENT,
+   ofMsgKey           VARCHAR(64)       NULL,
+   ofMsgAction        VARCHAR(64)       NOT NULL,
+   ofMsgTime          DATETIME          NOT NULL,
+   ofMsgExpire        DATETIME          NULL,
+   ofForUser          VARCHAR(255)      NOT NULL,
+   ofForResource      VARCHAR(255)      NULL,
+   ofFromUser         VARCHAR(255)      NULL,
+   ofFromResource     VARCHAR(255)      NULL,
+   ofMsgType          INT               NOT NULL DEFAULT 0,
+   ofIsDurable        INT               NOT NULL DEFAULT 0,
+   ofIsUnique         INT               NOT NULL DEFAULT 1,
+   ofAux1             TEXT              NULL,
+   ofAux2             TEXT              NULL,
+   ofAuxData          TEXT              NULL,
+   PRIMARY KEY (ofMsgId)
+) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;

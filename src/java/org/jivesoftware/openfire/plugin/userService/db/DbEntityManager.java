@@ -1,8 +1,11 @@
-package org.jivesoftware.openfire.plugin.userService.push;
+package org.jivesoftware.openfire.plugin.userService.db;
 
 import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.plugin.userService.clientState.ActivityRecord;
+import org.jivesoftware.openfire.plugin.userService.platformPush.TokenConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xmpp.packet.JID;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -90,6 +93,35 @@ public class DbEntityManager {
         }
 
         return msg;
+    }
+
+    /**
+     * Builds ActivityRecord from result set.
+     * @param rs
+     * @return
+     */
+    public static ActivityRecord activityRecordFromRes(ResultSet rs){
+        if (rs == null){
+            return null;
+        }
+
+        ActivityRecord ar = null;
+        try {
+            final String user = rs.getString(ActivityRecord.FIELD_USER);
+            final String resource = rs.getString(ActivityRecord.FIELD_RESOURCE);
+            final JID jid = new JID(user + "/" + resource);
+
+            ar = new ActivityRecord();
+            ar.setUser(jid);
+            ar.setLastActiveMilli(rs.getDate(ActivityRecord.FIELD_ACT_TIME).getTime());
+            ar.setLastState(rs.getInt(ActivityRecord.FIELD_LAST_STATUS));
+
+        } catch(Exception e){
+            log.error("Exception in loading DbPushMessage from RS", e);
+            ar = null;
+        }
+
+        return ar;
     }
 
     /**
@@ -244,11 +276,7 @@ public class DbEntityManager {
         }
         catch (SQLException e) {
             log.error(e.getMessage(), e);
-            try {
-                con.rollback();
-            } catch (Exception e1) {
-                log.error("Rollback exception", e1);
-            }
+            rollback(con);
             return null;
         }
         finally {
@@ -282,11 +310,11 @@ public class DbEntityManager {
             pstmtDelete.executeUpdate();
 
             pstmt = con.prepareStatement(q, Statement.RETURN_GENERATED_KEYS);
-            pstmt.setLong     (1,  msg.getPushMessageId());
+            pstmt.setLong(1, msg.getPushMessageId());
             pstmt.setTimestamp(2, new Timestamp(msg.getTstamp()));
             pstmt.setString   (3,  msg.getUser());
             pstmt.setString   (4,  msg.getResource() == null ? "" : msg.getResource());
-            pstmt.setInt      (5,  msg.getStatus());
+            pstmt.setInt(5, msg.getStatus());
 
             pstmt.executeUpdate();
             con.commit();
@@ -298,12 +326,7 @@ public class DbEntityManager {
         }
         catch (SQLException e) {
             log.info(e.getMessage(), e);
-
-            try {
-                con.rollback();
-            } catch (Exception e1) {
-                log.error("Rollback exception", e1);
-            }
+            rollback(con);
         }
         finally {
             DbConnectionManager.closeStatement(pstmtDelete);
@@ -311,6 +334,152 @@ public class DbEntityManager {
         }
 
         return null;
+    }
+
+    /**
+     * Stores message ACK to database.
+     * @param tokenConfig
+     */
+    public static void persistAppleTokenConfig(TokenConfig tokenConfig){
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        PreparedStatement pstmtDelete = null;
+
+        final String q  = "INSERT INTO ofPushTokenApple VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        final String dq = "DELETE FROM ofPushTokenApple WHERE ofUser=? AND ofResource=?";
+        try {
+            final JID user = tokenConfig.getUser();
+
+            con = DbConnectionManager.getConnection();
+            con.setAutoCommit(false);
+
+            pstmtDelete = con.prepareStatement(dq);
+            pstmtDelete.setString(1, user.toBareJID());
+            pstmtDelete.setString(2, user.getResource());
+            pstmtDelete.executeUpdate();
+
+            pstmt = con.prepareStatement(q);
+            pstmt.setString   (1, user.asBareJID().toString());
+            pstmt.setString   (2, user.getResource());
+            pstmt.setString(3, tokenConfig.getToken());
+            pstmt.setString(4, tokenConfig.getFakeUdid());
+            pstmt.setString   (5, tokenConfig.getVersion());
+            pstmt.setString(6, tokenConfig.getAppVersion());
+            pstmt.setString(7, tokenConfig.getOsVersion());
+            pstmt.setString   (8, tokenConfig.getLangList());
+            pstmt.setBoolean(9, tokenConfig.getDebug());
+            pstmt.setTimestamp(10, new Timestamp(System.currentTimeMillis()));
+            pstmt.setString(11, tokenConfig.getAuxJson());
+
+            pstmt.executeUpdate();
+            con.commit();
+        }
+        catch (SQLException e) {
+            log.info(e.getMessage(), e);
+            rollback(con);
+        }
+        finally {
+            DbConnectionManager.closeStatement(pstmtDelete);
+            DbConnectionManager.closeConnection(null, pstmt, con);
+        }
+    }
+
+    /**
+     * Stores last activity record to the database.
+     * @param ar
+     */
+    public static void persistLastActivity(ActivityRecord ar){
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        PreparedStatement pstmtDelete = null;
+        ResultSet rs = null;
+
+        final String q  = "INSERT INTO ofPhxLastActivity VALUES (?, ?, ?, ?)";
+        final String dq = "DELETE FROM ofPhxLastActivity WHERE ofUser=? AND ofResource=?";
+        try {
+            final JID user = ar.getUser();
+
+            con = DbConnectionManager.getConnection();
+            con.setAutoCommit(false);
+
+            pstmtDelete = con.prepareStatement(dq);
+            pstmtDelete.setString(1, user.toBareJID());
+            pstmtDelete.setString(2, user.getResource());
+            pstmtDelete.executeUpdate();
+
+            pstmt = con.prepareStatement(q);
+            pstmt.setString   (1, user.asBareJID().toString());
+            pstmt.setString   (2, user.getResource());
+            pstmt.setTimestamp(3, new Timestamp(ar.getLastActiveMilli()));
+            pstmt.setInt      (4, ar.getLastState());
+            pstmt.executeUpdate();
+            con.commit();
+        }
+        catch (SQLException e) {
+            log.info(e.getMessage(), e);
+            rollback(con);
+        }
+        finally {
+            DbConnectionManager.closeStatement(pstmtDelete);
+            DbConnectionManager.closeConnection(rs, pstmt, con);
+        }
+    }
+
+    /**
+     * Loads last activity for the given user from database.
+     * Returns null if no such record was found.
+     *
+     * @param user
+     * @return
+     */
+    public static ActivityRecord getLastActivity(JID user){
+        List<DbPushMessage> msgs = new ArrayList<DbPushMessage>();
+
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            con = DbConnectionManager.getConnection();
+            pstmt = con.prepareStatement("SELECT * FROM ofPhxLastActivity WHERE ofUser=? AND ofResource=? LIMIT 1");
+            pstmt.setString(1, user.asBareJID().toString());
+            pstmt.setString(2, user.getResource());
+
+            rs = pstmt.executeQuery();
+            if (!rs.first()) {
+                return null;
+            }
+
+            try {
+                return activityRecordFromRes(rs);
+
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+            }
+        }
+        catch (SQLException e) {
+            log.error(e.getMessage(), e);
+        }
+        finally {
+            DbConnectionManager.closeConnection(rs, pstmt, con);
+        }
+
+        return null;
+    }
+
+    /**
+     * Rollback current transaction, catching all exceptions.
+     * @param con Connection.
+     */
+    public static void rollback(Connection con){
+        if (con == null){
+            return;
+        }
+
+        try {
+            con.rollback();
+        } catch (Exception e1) {
+            log.error("Rollback exception", e1);
+        }
     }
 
     /**

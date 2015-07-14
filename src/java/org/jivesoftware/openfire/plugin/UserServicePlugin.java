@@ -40,8 +40,11 @@ import org.jivesoftware.openfire.plugin.userService.amqp.AMQPListener;
 import org.jivesoftware.openfire.plugin.userService.amqp.AMQPMsgListener;
 import org.jivesoftware.openfire.plugin.userService.clientState.ClientStateService;
 import org.jivesoftware.openfire.plugin.userService.geoip.GeoIpHolder;
+import org.jivesoftware.openfire.plugin.userService.platformPush.PlatformPushHandler;
+import org.jivesoftware.openfire.plugin.userService.platformPush.TokenConfig;
 import org.jivesoftware.openfire.plugin.userService.push.PushService;
 import org.jivesoftware.openfire.plugin.userService.roster.TransferRosterItem;
+import org.jivesoftware.openfire.plugin.userService.utils.LRUCache;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
 import org.jivesoftware.openfire.roster.Roster;
@@ -90,6 +93,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
     private AMQPListener amqpListener;
     private PushService pushSvc;
     private ClientStateService cstateSvc;
+    private PlatformPushHandler pPushSvc;
     private TaskExecutor executor;
 
     private String secret;
@@ -130,6 +134,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         deliverer = server.getPacketDeliverer();
         pushSvc = new PushService(this);
         cstateSvc = new ClientStateService(this);
+        pPushSvc = new PlatformPushHandler(this);
         executor = new TaskExecutor(this);
         executor.start();
 
@@ -152,6 +157,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         // Register this as an IQ handler
         pushSvc.init();
         cstateSvc.init();
+        pPushSvc.init();
 
         // Start AMQP listener
         amqpListener = new AMQPListener();
@@ -175,6 +181,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         amqpListener.deinit();
         pushSvc.deinit();
         cstateSvc.deinit();
+        pPushSvc.deinit();
         executor.deinit();
 
         // Stop listening to system property events

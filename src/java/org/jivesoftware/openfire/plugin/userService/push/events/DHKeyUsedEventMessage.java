@@ -1,4 +1,6 @@
-package org.jivesoftware.openfire.plugin.userService.push.messages;
+package org.jivesoftware.openfire.plugin.userService.push.events;
+
+import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushPart;
 
 /**
  * Push message event signalizing one or more DHKey was used and user may regenerate some DHKeys in order to provide FT service.

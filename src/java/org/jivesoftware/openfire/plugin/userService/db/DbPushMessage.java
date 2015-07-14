@@ -1,4 +1,4 @@
-package org.jivesoftware.openfire.plugin.userService.push;
+package org.jivesoftware.openfire.plugin.userService.db;
 
 /**
  * Created by dusanklinec on 11.03.15.

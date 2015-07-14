@@ -74,14 +74,14 @@ public class TaskExecutor extends Thread {
                 job.setSvc(svc);
 
                 // Run the job.
-                if (job.name != null){
-                    log.info("<job_"+job.name+">");
+                if (job.getName() != null){
+                    log.info("<job_"+job.getName()+">");
                 }
 
                 job.run();
 
-                if (job.name != null){
-                    log.info("</job_"+job.name+">");
+                if (job.getName() != null){
+                    log.info("</job_"+job.getName()+">");
                 }
             }
 
@@ -96,34 +96,4 @@ public class TaskExecutor extends Thread {
         log.info("Executor thread finishing.");
     }
 
-    /**
-     * Base class for jobs execution.
-     */
-    public static class Job implements Runnable {
-        private final JobRunnable job;
-        private String name;
-        private WeakReference<UserServicePlugin> svc;
-
-        public Job(JobRunnable job) {
-            this.job = job;
-        }
-
-        public Job(String name, JobRunnable job) {
-            this.name = name;
-            this.job = job;
-        }
-
-        @Override
-        public void run() {
-            try {
-                job.run(svc == null ? null : svc.get());
-            } catch(Exception e){
-                log.error(String.format("Exception in executing a job %s", name), e);
-            }
-        }
-
-        public void setSvc(UserServicePlugin svc) {
-            this.svc = new WeakReference<UserServicePlugin>(svc);
-        }
-    }
 }

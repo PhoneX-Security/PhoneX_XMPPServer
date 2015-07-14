@@ -11,6 +11,14 @@ import org.jivesoftware.openfire.interceptor.InterceptorManager;
 import org.jivesoftware.openfire.interceptor.PacketInterceptor;
 import org.jivesoftware.openfire.interceptor.PacketRejectedException;
 import org.jivesoftware.openfire.plugin.UserServicePlugin;
+import org.jivesoftware.openfire.plugin.userService.Job;
+import org.jivesoftware.openfire.plugin.userService.JobRunnable;
+import org.jivesoftware.openfire.plugin.userService.clientState.iq.ActiveIq;
+import org.jivesoftware.openfire.plugin.userService.clientState.iq.InactiveIq;
+import org.jivesoftware.openfire.plugin.userService.clientState.iq.LastActivityQueryIq;
+import org.jivesoftware.openfire.plugin.userService.db.DbEntityManager;
+import org.jivesoftware.openfire.plugin.userService.platformPush.TokenConfig;
+import org.jivesoftware.openfire.plugin.userService.utils.LRUCache;
 import org.jivesoftware.openfire.session.LocalSession;
 import org.jivesoftware.openfire.session.Session;
 import org.slf4j.Logger;
@@ -38,6 +46,12 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
 
     private UserServicePlugin plugin;
 
+    /**
+     * Caching last activity for the user.
+     */
+    private final LRUCache<JID, ActivityRecord> activityCache = new LRUCache<JID, ActivityRecord>(128);
+    private final LRUCache<String, ActivityRecord> activityCacheUsr = new LRUCache<String, ActivityRecord>(128);
+
     public ClientStateService(UserServicePlugin plugin) {
         super("ClientStateService");
         this.plugin = plugin;
@@ -48,9 +62,14 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
         iqRouter.addHandler(this);
         InterceptorManager intManager = InterceptorManager.getInstance();
         intManager.addInterceptor(this);
+        activityCache.clear();
+        activityCacheUsr.clear();
     }
 
     public void deinit(){
+        activityCache.clear();
+        activityCacheUsr.clear();
+
         // Remove this as IQ listener.
         try {
             IQRouter iqRouter = XMPPServer.getInstance().getIQRouter();
@@ -73,12 +92,6 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
         log.info(String.format("Handle IQ[clientState] packetType: %s, from: %s, to: %s", iqType, packet.getFrom(), packet.getTo()));
         log.info(packet.toString());
 
-        // Handle only specific get requests.
-        if (!IQ.Type.set.equals(iqType)) {
-            log.info("Undesired type, not processing");
-            return null;
-        }
-
         if (plugin == null){
             log.info("No svc, cannot process");
             return null;
@@ -94,9 +107,13 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
             // Active state set.
             setActivityFlag(packet.getFrom(), true);
 
-        } else if (InactiveIq.ELEMENT_NAME.equals(tagName)){
+        } else if (InactiveIq.ELEMENT_NAME.equals(tagName)) {
             // Inactive state set.
             setActivityFlag(packet.getFrom(), false);
+
+        } else if (LastActivityQueryIq.ELEMENT_NAME.equals(tagName)){
+            // Handle query for last activity.
+            return handleLastActivityQuery(packet, packet.getFrom());
 
         } else {
             return IQ.createResultIQ(packet);
@@ -112,6 +129,10 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
      */
     private void setActivityFlag(JID from, boolean active){
         try {
+            // Store last activity to the database so it can be retrieved later.
+            storeActivityRecord(from, !active);
+
+            // Activity info stored to the session, for intercepting presence updates.
             Session sess = sessionManager.getSession(from);
             if (sess instanceof LocalSession){
                 final LocalSession localSession = (LocalSession) sess;
@@ -130,6 +151,102 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
         } catch (Exception ex) {
             log.error("Exception in setting activity", ex);
         }
+    }
+
+    /**
+     * Stores activity record for given user to the cache + database.
+     * TODO: add grouping so we do not update database with each activity update. e.g. if user changes activity 100x a minute, update only once a minute.
+     * @param user
+     * @param wentInactive
+     */
+    protected void storeActivityRecord(JID user, boolean wentInactive){
+        final ActivityRecord ar = new ActivityRecord(
+                user,
+                System.currentTimeMillis(),
+                wentInactive ? ActivityRecord.STATE_INACTIVE : ActivityRecord.STATE_ACTIVE
+        );
+
+        // Store activity record to the cache for fast retrieval.
+        activityCache.put(user, ar);
+        // Newest in username based cache.
+        final String uname = user.toBareJID();
+        final ActivityRecord usrAr = activityCacheUsr.get(uname);
+        if (usrAr == null || usrAr.isSentinel() || usrAr.getLastActiveMilli() < ar.getLastActiveMilli()){
+            activityCacheUsr.put(uname, ar);
+        }
+
+        // Store activity record to the database to survive service restart & cache evictions. Do it in background.
+        plugin.submit("lastActivityStore", new JobRunnable() {
+            @Override
+            public void run(UserServicePlugin plugin) {
+                DbEntityManager.persistLastActivity(ar);
+            }
+        });
+    }
+
+    /**
+     * Tries to retrieve last activity for the user.
+     * Using cache and database layer.
+     *
+     * @param user
+     * @return
+     */
+    protected ActivityRecord getLastActivity(JID user){
+        // Try cache lookup. Since we have sentinel records we do not have to query database each time for non-existent records.
+        final String resource = user.getResource();
+        final boolean usrGlobal = resource == null || resource.isEmpty();
+        if (usrGlobal){
+            // If resource is empty, search in user global cache.
+            final ActivityRecord ar = activityCacheUsr.get(user.toBareJID());
+            if (ar != null){
+                return ar;
+            }
+        } else {
+            // User + resource cache.
+            final ActivityRecord ar = activityCache.get(user);
+            if (ar != null) {
+                return ar;
+            }
+        }
+
+        // Cache miss, try to load from database. Update cache from database.
+        final ActivityRecord ar2 = DbEntityManager.getLastActivity(user);
+        if (ar2 == null){
+            final ActivityRecord sentinel = new ActivityRecord(user, true);
+
+            if (usrGlobal){
+                activityCacheUsr.put(user.toBareJID(), sentinel);
+            } else {
+                activityCache.put(user, sentinel);
+                activityCacheUsr.put(user.toBareJID(), sentinel);
+            }
+
+            return sentinel;
+        }
+
+        if (usrGlobal){
+            activityCacheUsr.put(user.toBareJID(), ar2);
+        } else {
+            activityCache.put(user, ar2);
+            activityCacheUsr.put(user.toBareJID(), ar2);
+        }
+
+        return ar2;
+    }
+
+    /**
+     * Handles IQ resuests for last activity of given user.
+     * @param packet
+     * @param user
+     * @return
+     */
+    protected IQ handleLastActivityQuery(IQ packet, JID user){
+        // TODO: check roster permissions, allow it only if presence update is allowed too.
+
+
+        // TODO: implement.
+//        final ActivityRecord ar = getLastActivity(user);
+        return IQ.createResultIQ(packet);
     }
 
     /**
