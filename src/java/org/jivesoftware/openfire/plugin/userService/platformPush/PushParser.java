@@ -14,8 +14,30 @@ import org.xmpp.packet.IQ;
  *
  * Created by dusanklinec on 14.07.15.
  */
-public class PushRequestParser {
-    private static final Logger log = LoggerFactory.getLogger(PushRequestParser.class);
+public class PushParser {
+    private static final Logger log = LoggerFactory.getLogger(PushParser.class);
+
+    /**
+     * Creates a new instance of the message by its action.
+     * @param action action string identifying message object.
+     * @param generic if false and message is not recognized, null is returned. If true and message is not recognized,
+     *                general message is used.
+     * @return PushRequestMessage or child of PushRequestMessage.
+     */
+    public static PushRequestMessage getMessageByAction(String action, boolean generic){
+        PushRequestMessage pm = null;
+        if (NewMessagePush.ACTION.equals(action)){
+            pm = new NewMessagePush();
+        } else if (NewMissedCallPush.ACTION.equals(action)){
+            pm = new NewMissedCallPush();
+        } else if (NewActiveCallPush.ACTION.equals(action)){
+            pm = new NewActiveCallPush();
+        } else if (generic) {
+            pm = new PushRequestMessage();
+        }
+
+        return pm;
+    }
 
     /**
      * Process JSON push message request.
@@ -42,20 +64,13 @@ public class PushRequestParser {
                     continue;
                 }
 
-                PushRequestMessage pm = null;
-                if (NewMessagePush.ACTION.equals(action)){
-                    pm = new NewMessagePush(curReq);
-                } else if (NewMissedCallPush.ACTION.equals(action)){
-                    pm = new NewMissedCallPush(curReq);
-                } else if (NewActiveCallPush.ACTION.equals(action)){
-                    pm = new NewActiveCallPush(curReq);
-                } else if (CancelActiveCallPush.ACTION.equals(action)){
-                    pm = new CancelActiveCallPush(curReq);
-                } else {
+                PushRequestMessage pm = getMessageByAction(action, false);
+                if (pm == null) {
                     log.warn(String.format("Unrecognized push message: %s", action));
                     continue;
                 }
 
+                pm.parserFromJson(curReq);
                 preq.addMessage(pm);
             }
 
