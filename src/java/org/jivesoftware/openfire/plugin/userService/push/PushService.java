@@ -417,10 +417,10 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      * @param sndRec
      * @return
      */
-    private boolean addSendRecordCheckQueue(PushSendRecord sndRec) {
+    private AckMergeRecord addSendRecordCheckQueue(PushSendRecord sndRec) {
         Enumeration<PushSendRecord> elems = ackWait.elements();
         if (elems == null || !elems.hasMoreElements()){
-            return false;
+            return AckMergeRecord.NOT_MERGED;
         }
 
         while(elems.hasMoreElements()){
@@ -435,31 +435,43 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                 }
 
                 // Can merge - do it.
+                AckMergeRecord mergeRec = new AckMergeRecord(true);
                 boolean hasChanged = false;
                 try {
+                    final String oldId = curRec.getPacket() != null ? curRec.getPacket().getID() : "";
+                    mergeRec.setOldPacketId(oldId);
+
                     hasChanged = curRec.mergeWithRecord(sndRec);
-                    log.info(String.format("Merged with ackWait item, changed=%s, curRecId=%s", hasChanged, curRec.getPacketId()));
+                    final String newId = curRec.getPacket() != null ? curRec.getPacket().getID() : "";
+
+                    mergeRec.setNewRecord(curRec);
+                    mergeRec.setHasChanged(hasChanged);
+
+                    log.info(String.format("Merged with ackWait item, changed=%s, curRecId=%s, time=%d, oldId=%s, newId=%s",
+                            hasChanged, curRec.getPacketId(), curRec.getSendTstamp(), oldId, newId));
+                    log.debug(String.format("Merged with ackWait item, changed=%s, curRecId=%s, time=%d, packet=%s",
+                            hasChanged, curRec.getPacketId(), curRec.getSendTstamp(), curRec.getPacket()));
 
                 } catch(Exception e){
                     log.error("Exception in message merge", e);
 
                     // Cannot proceed, add as a separate message
-                    return false;
+                    return AckMergeRecord.NOT_MERGED;
                 }
 
                 // if element has not been changed, ignore this message.
                 if (!hasChanged){
-                    return true;
+                    return mergeRec;
                 }
 
                 // Element has been changed, set to force re-send.
                 curRec.setForceResend(true);
-                return true;
+                return mergeRec;
             }
         }
 
         // Default case - no match, add to send queue then.
-        return false;
+        return AckMergeRecord.NOT_MERGED;
     }
 
     /**
@@ -478,9 +490,30 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
 
         // At first try to observe ack storage if there is some message this new one can be merged with in order not to
         // send excessive amount of messages and to group them together.
-        boolean mergedToWaitQueue = addSendRecordCheckQueue(sndRec);
-        if (mergedToWaitQueue){
-            return;
+        final AckMergeRecord ackMergeRec = addSendRecordCheckQueue(sndRec);
+        // If newSndRec is not null, it means sndRec was merged to the newSndRec.
+        if (ackMergeRec.wasMerged()){
+            // If waiting packet has not been changed (no new content), ignore it.
+            if (!ackMergeRec.wasChanged() || ackMergeRec.getNewRecord() == null){
+                return;
+            }
+
+            // Packet was changed, make sure, that last send time is not too late (packet stuck in the queue).
+            // If so, this packet may be blocked in the queue, move it to the send queue.
+            final PushSendRecord newSndRec = ackMergeRec.getNewRecord();
+            if ((System.currentTimeMillis() - newSndRec.getLastSendTstamp()) > 1000*60*60){
+                log.warn(String.format("Message in ackWait queue for too long, record: %s", newSndRec));
+
+                final String lastAckId = newSndRec.getAckWaitPacketId();
+                if (lastAckId != null) {
+                    ackWait.remove(lastAckId);
+                }
+
+                sndRec = newSndRec;
+            } else {
+                // Merged and OK, return.
+                return;
+            }
         }
 
         // Record to be added to the queue. Either given one or merged one that has been removed before merge.
