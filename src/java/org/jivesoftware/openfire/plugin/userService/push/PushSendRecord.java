@@ -42,6 +42,11 @@ public class PushSendRecord implements Comparable<PushSendRecord> {
     private boolean forceResend = false;
 
     /**
+     * Packet ID that was used to reference this packet in the ackWait queue.
+     */
+    private String ackWaitPacketId;
+
+    /**
      * Simple locking object for synchronization.
      */
     public final Object lock = new Object();
@@ -137,6 +142,7 @@ public class PushSendRecord implements Comparable<PushSendRecord> {
                 ", pushMsg=" + pushMsg +
                 ", packet=" + packet +
                 ", forceResend=" + forceResend +
+                ", ackWaitPacketId='" + ackWaitPacketId + '\'' +
                 '}';
     }
 
@@ -194,5 +200,13 @@ public class PushSendRecord implements Comparable<PushSendRecord> {
 
     public void setForceResend(boolean forceResend) {
         this.forceResend = forceResend;
+    }
+
+    public String getAckWaitPacketId() {
+        return ackWaitPacketId;
+    }
+
+    public void setAckWaitPacketId(String ackWaitPacketId) {
+        this.ackWaitPacketId = ackWaitPacketId;
     }
 }

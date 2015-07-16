@@ -84,14 +84,17 @@ public class PushSender extends Thread {
                     sndRec.incSendCtr();
                     iqRouter.addIQResultListener(sndRec.getPacketId(), svc, 1000 * 30);
                     iqRouter.route(sndRec.getPacket());
-
-                    log.info(String.format("Routing packet to: %s, packetId=%s", sndRec.getDestination(), sndRec.getPacketId()));
-                    svc.getPlugin().getRoutingTable().routePacket(sndRec.getDestination(), sndRec.getPacket(), true);
                     sndRec.setLastSendTstamp(curTime);
 
                     // Store this record to the waiting map where it waits for ack or for timeout.
-                    svc.getAckWait().put(sndRec.getPacketId(), sndRec);
-                    log.info(String.format("Packet sent, ackWaitSize: %d", svc.getAckWait().size()));
+                    final String packetId = sndRec.getPacketId();
+                    sndRec.setAckWaitPacketId(packetId);
+                    svc.getAckWait().put(packetId, sndRec);
+
+                    // Do real sending after packet ACK record was set.
+                    log.info(String.format("Routing packet to: %s, packetId=%s", sndRec.getDestination(), sndRec.getPacketId()));
+                    svc.getPlugin().getRoutingTable().routePacket(sndRec.getDestination(), sndRec.getPacket(), true);
+                    log.info(String.format("Packet sent, ackWaitSize: %d, packet id: %s", svc.getAckWait().size(), packetId));
                 } catch(Exception ex){
                     log.error("Error during sending a packet", ex);
                 }
