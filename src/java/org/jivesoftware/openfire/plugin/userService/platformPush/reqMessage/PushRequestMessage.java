@@ -19,6 +19,14 @@ public class PushRequestMessage {
     public static final String FIELD_KEY = "key";
     public static final String FIELD_EXPIRE = "expire";
     public static final String FIELD_TARGET = "target";
+    public static final String FIELD_CANCEL = "cancel";
+
+    public static final int URGENCY_MIN = 0; // MIN bound.
+    public static final int URGENCY_BACKGROUND = 0; // certificate check and such.
+    public static final int URGENCY_APP_NEEDS_START = 1; // DH keys are needed, necessary management.
+    public static final int URGENCY_NEW_USER_EVENT = 2; // new message / missed call.
+    public static final int URGENCY_REALTIME = 3; // new active incoming call. Needs to be answered quickly.
+    public static final int URGENCY_MAX = 3; // MAX bound
 
     protected String action;
 
@@ -43,14 +51,24 @@ public class PushRequestMessage {
     protected JID toUser;
 
     /**
+     * If true this message cancels previous message referenced by key.
+     */
+    protected boolean cancel = false;
+
+    /**
      * Sets by the processing engine.
      */
-    protected boolean unique;
+    protected boolean unique = true;
 
     /**
      * Message type w.r.t. uniqueness from user / user+resource, realtimeness.
      */
     protected int messageType = 0;
+
+    /**
+     * Realtime property of the notification.
+     */
+    protected int urgencyType = URGENCY_MIN;
 
     /**
      * Database related message id.
@@ -92,6 +110,24 @@ public class PushRequestMessage {
         if (json.has(FIELD_TARGET)){
             toUser = new JID(json.getString(FIELD_TARGET));
         }
+
+        if (json.has(FIELD_CANCEL)){
+            cancel = json.getBoolean(FIELD_CANCEL);
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "PushRequestMessage{" +
+                "action='" + action + '\'' +
+                ", key='" + key + '\'' +
+                ", expiration=" + expiration +
+                ", toUser=" + toUser +
+                ", cancel=" + cancel +
+                ", unique=" + unique +
+                ", messageType=" + messageType +
+                ", messageId=" + messageId +
+                '}';
     }
 
     @Override
@@ -113,6 +149,13 @@ public class PushRequestMessage {
         result = 31 * result + (key != null ? key.hashCode() : 0);
         result = 31 * result + (toUser != null ? toUser.hashCode() : 0);
         return result;
+    }
+
+    /**
+     * Returns platform push alert string notification.
+     */
+    public String getAlertString() {
+        return "L_PHX_PUSH_ALERT";
     }
 
     public String getAction() {
@@ -153,5 +196,37 @@ public class PushRequestMessage {
 
     public void setUnique(boolean unique) {
         this.unique = unique;
+    }
+
+    public Long getExpiration() {
+        return expiration;
+    }
+
+    public void setExpiration(Long expiration) {
+        this.expiration = expiration;
+    }
+
+    public boolean isCancel() {
+        return cancel;
+    }
+
+    public void setCancel(boolean cancel) {
+        this.cancel = cancel;
+    }
+
+    public int getMessageType() {
+        return messageType;
+    }
+
+    public void setMessageType(int messageType) {
+        this.messageType = messageType;
+    }
+
+    public int getUrgencyType() {
+        return urgencyType;
+    }
+
+    public void setUrgencyType(int urgencyType) {
+        this.urgencyType = urgencyType;
     }
 }

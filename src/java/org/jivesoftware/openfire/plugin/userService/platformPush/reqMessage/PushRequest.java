@@ -6,6 +6,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Push request sent from the user to request apple push notification sending to another user.
+ * Wraps individual push requests.
+ *
+ * {"pushreq":[
+ *  {"push":"newMessage", "target": "test-internal3@phone-x.net"},
+ *  {"push":"newMissedCall", "target": "test-internal3@phone-x.net"},
+ *  {"push":"newCall", "key":"af45bed", "expire":180000, "target": "test-internal3@phone-x.net"}
+ * ]}
+ *
+ * Or equivalently for canceling new call request
+ * {"pushreq":[
+ *  {"push":"newCall", "key":"af45bed", "cancel":1}
+ * ]}
  * Created by dusanklinec on 14.07.15.
  */
 public class PushRequest {

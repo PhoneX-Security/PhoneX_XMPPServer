@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
+ * Cache for the device tokens stored for individual user.
+ * Idea: queries for user/resource + queries of the type: Has a given user any working device token?
  * Created by dusanklinec on 13.07.15.
  */
 public class TokenCache {

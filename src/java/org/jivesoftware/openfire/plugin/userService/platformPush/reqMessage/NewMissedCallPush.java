@@ -23,6 +23,16 @@ public class NewMissedCallPush extends PushRequestMessage {
 
     @Override
     public boolean isUnique() {
-        return true;
+        return false;
+    }
+
+    @Override
+    public int getUrgencyType() {
+        return URGENCY_NEW_USER_EVENT;
+    }
+
+    @Override
+    public String getAlertString() {
+        return "L_PHX_PUSH_NEW_MISSED_CALL";
     }
 }

@@ -25,4 +25,14 @@ public class NewActiveCallPush extends PushRequestMessage {
     public boolean isUnique() {
         return true;
     }
+
+    @Override
+    public int getUrgencyType() {
+        return URGENCY_REALTIME;
+    }
+
+    @Override
+    public String getAlertString() {
+        return "L_PHX_PUSH_NEW_CALL";
+    }
 }

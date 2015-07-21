@@ -5,6 +5,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.xmpp.packet.JID;
 
+import java.sql.ResultSet;
 import java.util.ArrayList;
 
 /**
@@ -98,6 +99,26 @@ public class TokenConfig {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * Initializes language list from the comma separated language list.
+     * @param langsLst
+     */
+    public void setLangsField(String langsLst) {
+        if (langsLst == null || langsLst.isEmpty()) {
+            return;
+        }
+
+        langs.clear();
+        final String[] parts = langsLst.split(",");
+        for(String part : parts){
+            if (part.isEmpty()){
+                continue;
+            }
+
+            langs.add(part);
+        }
     }
 
     @Override

@@ -585,7 +585,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
      * @param probee
      * @return
      */
-    private boolean canProbePresence(JID prober, String probee) {
+    public boolean canProbePresence(JID prober, String probee) {
         boolean canProbe = false;
         try {
             canProbe = presenceManager.canProbePresence(prober, probee);
@@ -782,7 +782,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
      * @throws UserNotFoundException if the requested user
      *                               does not exist in the local server.
      */
-    private User getUser(String username) throws UserNotFoundException {
+    public User getUser(String username) throws UserNotFoundException {
         JID targetJID = server.createJID(username, null);
         // Check that the sender is not requesting information of a remote server entity
         if (targetJID.getNode() == null) {

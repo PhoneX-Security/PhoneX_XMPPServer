@@ -191,7 +191,7 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
      * @param user
      * @return
      */
-    protected ActivityRecord getLastActivity(JID user){
+    public ActivityRecord getLastActivity(JID user){
         // Try cache lookup. Since we have sentinel records we do not have to query database each time for non-existent records.
         final String resource = user.getResource();
         final boolean usrGlobal = resource == null || resource.isEmpty();
