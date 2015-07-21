@@ -4,20 +4,39 @@ package org.jivesoftware.openfire.plugin.userService.utils;
  * Created by dusanklinec on 08.07.15.
  */
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.*;
 
 public class LRUCache<K, V> implements Map<K, V> {
+    private static final Logger log = LoggerFactory.getLogger(LRUCache.class);
+
     private final int cacheSize;
     private final LinkedHashMap<K, V> map;
+    private LRUCacheEvictionListener<K,V> evictionListener;
+    public interface LRUCacheEvictionListener<K,V> {
+        void onEntryEvicted(LRUCache<K, V> cache, Map.Entry<K, V> eldest);
+    }
 
     public LRUCache(int cacheSize) {
         this.cacheSize = cacheSize;
+        final LRUCache<K, V> self = this;
+
         this.map = new LinkedHashMap<K, V>(cacheSize, 0.75f, true) {
             private static final long serialVersionUID = 1;
 
             @Override
             protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-                return size() > LRUCache.this.cacheSize;
+                boolean toDelete = size() > LRUCache.this.cacheSize;
+                if (toDelete && evictionListener != null){
+                    try {
+                        evictionListener.onEntryEvicted(self, eldest);
+                    } catch(Throwable t){
+                        log.error("Exception in the eviction listener.");
+                    }
+                }
+                return toDelete;
             }
         };
     }
@@ -118,5 +137,13 @@ public class LRUCache<K, V> implements Map<K, V> {
     @Override
     public synchronized Set<Entry<K, V>> entrySet() {
         return map.entrySet();
+    }
+
+    public LRUCacheEvictionListener<K, V> getEvictionListener() {
+        return evictionListener;
+    }
+
+    public void setEvictionListener(LRUCacheEvictionListener<K, V> evictionListener) {
+        this.evictionListener = evictionListener;
     }
 } // end class LRUCache
