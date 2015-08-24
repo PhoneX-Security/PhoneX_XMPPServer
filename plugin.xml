@@ -2,12 +2,14 @@
 
 <plugin>
     <class>org.jivesoftware.openfire.plugin.UserServicePlugin</class>
-    <name>User Service Ex</name>
-    <description>Allows administration of users via HTTP requests.</description>
-    <author>Justin Hunt, Ph4r05</author>
-    <version>1.4.5</version>
-    <date>09/13/2013</date>
+    <name>PhoneX</name>
+    <description>PhoneX extensions plugin.</description>
+    <author>Ph4r05</author>
+    <version>1.0.0</version>
+    <date>13/03/2015</date>
     <minServerVersion>3.9.0</minServerVersion>
+    <databaseKey>userservice</databaseKey>
+    <databaseVersion>1</databaseVersion>
     
     <adminconsole>		
         <tab id="tab-server">
