@@ -11,11 +11,12 @@ import org.jivesoftware.openfire.plugin.UserServicePlugin;
 import org.jivesoftware.openfire.plugin.userService.db.DbEntityManager;
 import org.jivesoftware.openfire.plugin.userService.db.DbPushDelivery;
 import org.jivesoftware.openfire.plugin.userService.db.DbPushMessage;
+import org.jivesoftware.openfire.plugin.userService.push.events.*;
 import org.jivesoftware.openfire.plugin.userService.push.iq.PresenceQueryIq;
 import org.jivesoftware.openfire.plugin.userService.push.iq.PushIq;
 import org.jivesoftware.openfire.plugin.userService.push.iq.PushQueryIq;
-import org.jivesoftware.openfire.plugin.userService.push.messages.*;
-import org.jivesoftware.openfire.plugin.userService.push.events.*;
+import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushMessage;
+import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushPart;
 import org.jivesoftware.openfire.roster.Roster;
 import org.jivesoftware.openfire.roster.RosterItem;
 import org.json.JSONArray;
@@ -112,36 +113,40 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                     pushClistSync(userName, obj, msg);
 
                 } else if (NewCertEventMessage.PUSH.equalsIgnoreCase(pushAction)) {
-                    log.info("Login event registered.");
+                    log.info("Login event registered for user: " + userName);
                     pushNewCertEvent(userName, obj, msg);
 
                 } else if (DHKeyUsedEventMessage.PUSH.equalsIgnoreCase(pushAction)){
-                    log.info("DHKey used event");
+                    log.info("DHKey used event for user: " + userName);
                     pushDHKeyUsed(userName, obj, msg);
 
                 } else if (AuthCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)){
-                    log.info("AuthCheck request event registered.");
+                    log.info("AuthCheck request event registered for user: " + userName);
 
                 } else if (ContactRequestEventMessage.PUSH.equalsIgnoreCase(pushAction)){
-                    log.info("Contact request event registered.");
+                    log.info("Contact request event registered for user: " + userName);
 
                 } else if (LicenseCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)){
-                    log.info("license check request event registered.");
+                    log.info("license check request event registered for user: " + userName);
                     pushLicenseCheck(userName, obj, msg);
 
                 } else if (MissedCallEventMessage.PUSH.equalsIgnoreCase(pushAction)){
-                    log.info("missed call event registered.");
+                    log.info("missed call event registered for user: " + userName);
 
                 } else if (NewFileEventMessage.PUSH.equalsIgnoreCase(pushAction)){
-                    log.info("new file event registered.");
+                    log.info("new file event registered for user: " + userName);
 
                 } else if (VersionCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)) {
-                    log.info("new version event registered.");
+                    log.info("new version event registered for user: " + userName);
                     pushVersionCheck(userName, obj, msg);
 
-                } else if (ContactCertUpdateEventMessage.PUSH.equalsIgnoreCase(pushAction)){
-                    log.info("contact certificate update event registered.");
+                } else if (ContactCertUpdateEventMessage.PUSH.equalsIgnoreCase(pushAction)) {
+                    log.info("contact certificate update event registered for user: " + userName);
                     pushContactCertUpdate(userName, obj, msg);
+
+                } else if (PairingRequestCheckEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                    log.info("Pairing request event registered for user: " + userName);
+                    pushPairingRequestEvent(userName, obj, msg);
 
                 } else {
                     log.info(String.format("Unknown push event: %s", pushAction));
@@ -330,6 +335,22 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
 
         // Send to currently logged in users.
         this.sendPush(to, msgx);
+    }
+
+    /**
+     * Entry point for push message.
+     * @param user
+     * @throws JSONException
+     */
+    public void pushPairingRequestEvent(String user, JSONObject obj, JSONObject msg) throws JSONException {
+        final JID to = new JID(user);
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+
+        // Build push action.
+        SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
+        final PairingRequestCheckEventMessage evt = new PairingRequestCheckEventMessage(tstamp);
+
+        pushGenericMessage(to, msgx, evt);
     }
 
     /**
@@ -690,6 +711,12 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
 
             } else if (VersionCheckEventMessage.PUSH.equals(action)){
                 final VersionCheckEventMessage evt = new VersionCheckEventMessage(msg.getTstamp());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
+                added += 1;
+            } else if (PairingRequestCheckEventMessage.PUSH.equals(action)){
+                final PairingRequestCheckEventMessage evt = new PairingRequestCheckEventMessage(msg.getTstamp());
                 evt.setMessageId(msg.getId());
 
                 msgx.addPart(evt);
