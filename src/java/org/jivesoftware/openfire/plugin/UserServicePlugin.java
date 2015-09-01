@@ -60,6 +60,8 @@ import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.PropertyEventDispatcher;
 import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.StringUtils;
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -331,15 +333,15 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
         final User usr = getUser(username);
         final JID prober = server.createJID(username, null);
-        Roster r = rosterManager.getRoster(username);
+        final Roster r = rosterManager.getRoster(username);
 
-        Set<String> jidInRosterList = new HashSet<String>();
+        final Set<String> jidInRosterList = new HashSet<String>();
         for (TransferRosterItem tri : rosterList) {
             JID j = new JID(tri.jid);
             jidInRosterList.add(j.toBareJID().toString());
         }
 
-        Set<JID> newRosterEntries = new HashSet<JID>();
+        final Set<JID> newRosterEntries = new HashSet<JID>();
 
         // Update roster according to sync data.
         for (TransferRosterItem tri : rosterList) {
@@ -387,8 +389,8 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                 }
 
                 r.updateRosterItem(ri);
-                log.info(String.format("updating roster for u=%s, dest=%s, sub=%s",
-                        username, tri.name, tri.subscription));
+//                log.info(String.format("updating roster for u=%s, dest=%s, sub=%s",
+//                        username, tri.name, tri.subscription));
 
                 // Protect destination user.
                 // TODO: optimize this. It sufficess to create the list when user
@@ -420,10 +422,69 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         createDefaultPrivacyList(username);
 
         // Update new roster entries added -probe presence and broadcast data.
-        log.info(String.format("sync, new roster entries, size=%s, prober=%s", newRosterEntries.size(), username));
+        log.info(String.format("sync, new roster entries, size=%s, total=%s, prober=%s", newRosterEntries.size(), rosterList.size(), username));
         if (!newRosterEntries.isEmpty()) {
             refreshPresenceInfo(prober, newRosterEntries);
         }
+    }
+
+    /**
+     * Bulk roster synchronization.
+     * @param jsonReq
+     */
+    public void bulkSyncRosterInExecutor(final String jsonReq){
+        submit("bulkRosterSync", new JobRunnable() {
+            @Override
+            public void run(UserServicePlugin plugin) {
+                try {
+                    bulkSyncRoster(jsonReq);
+                } catch (Exception e) {
+                    log.error("Could not sync roster - exception", e);
+                    log.debug("JSON req: " + jsonReq);
+                }
+            }
+        });
+    }
+
+    /**
+     * Sync the roster with one specified in this request.
+     *
+     * @param jsonReq
+     * @throws org.jivesoftware.openfire.user.UserNotFoundException
+     * @throws org.jivesoftware.openfire.user.UserAlreadyExistsException
+     * @throws org.jivesoftware.openfire.SharedGroupException
+     */
+    public void bulkSyncRoster(final String jsonReq) throws UserNotFoundException, UserAlreadyExistsException, SharedGroupException, JSONException {
+        final JSONObject jsonObj = new JSONObject(jsonReq);
+        final JSONArray reqs = jsonObj.getJSONArray("requests");
+        final int cnt = reqs.length();
+        long totalRosterSize = 0;
+
+        log.info(String.format("Bulk roster sync started, entry count: %d, sizeReq: %d", cnt, jsonReq == null ? -1 : jsonReq.length()));
+        for(int i = 0; i < cnt; i++) {
+            final JSONObject req = reqs.getJSONObject(i);
+            final String user = req.getString("owner");
+            final JSONArray rosterList = req.getJSONArray("roster");
+            final int rosterSize = rosterList.length();
+            final JID jid = new JID(user);
+            totalRosterSize += rosterSize;
+
+            // Process roster from the request.
+            final List<TransferRosterItem> rosterItemList = new ArrayList<TransferRosterItem>(rosterSize);
+            for (int c = 0; c < rosterSize; c++){
+                final JSONObject rosterEntry = rosterList.getJSONObject(c);
+                final TransferRosterItem tri = TransferRosterItem.fromJSON(rosterEntry);
+                rosterItemList.add(tri);
+            }
+
+            if (rosterItemList.isEmpty()){
+                log.info(String.format("User %s has empty roster list", user));
+            }
+
+            syncRoster(jid.getNode(), rosterItemList);
+        }
+
+        log.info("Bulk roster finished, entry count: %d, total roster size: %d", cnt, totalRosterSize);
     }
 
     /**

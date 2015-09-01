@@ -110,16 +110,10 @@ public class UserServiceServlet extends HttpServlet {
             replyError("UserServiceDisabled",response, out);
             return;
         }
-        
-        String username = java.net.URLDecoder.decode(request.getParameter("username"), "UTF-8");
-        String password = request.getParameter("password");
-        String name = request.getParameter("name");
-        String email = request.getParameter("email");
-        String type = request.getParameter("type");
-        String secret = request.getParameter("secret");
-        String groupNames = request.getParameter("groups");
-        String item_jid = request.getParameter("item_jid");
-        String sub = request.getParameter("subscription");
+
+        request.setCharacterEncoding("utf-8");
+        final String type = request.getParameter("type");
+        final String secret = request.getParameter("secret");
         
         // In case of roster-sync, the whole user roster is passed in the request
         // using BASE64 encoding of the JSON-encoded list of the contacts.
@@ -137,19 +131,6 @@ public class UserServiceServlet extends HttpServlet {
             replyError("RequestNotAuthorised",response, out);
             return;
          }
-
-        // Some checking is required on the username
-        if (username == null){
-            replyError("IllegalArgumentException",response, out);
-            return;
-        }
-
-        if ((type.equals("add_roster") || type.equals("update_roster") || type.equals("delete_roster")) &&
-        	(item_jid == null || !(sub == null || sub.equals("-1") || sub.equals("0") ||
-        	sub.equals("1") || sub.equals("2") || sub.equals("3")))) {
-            replyError("IllegalArgumentException",response, out);
-            return;
-        }
         
         if(type.equals("sync_roster") && (roster==null || roster.isEmpty())){
             replyError("IllegalArgumentException",response, out);
@@ -158,10 +139,46 @@ public class UserServiceServlet extends HttpServlet {
 
         // Check the request type and process accordingly
         try {
+            // Bulk roster sync has almost no parameters.
+            if ("sync_roster_bulk".equals(type)){
+                try {
+                    final String jsonReq = request.getParameter("jsonReq");
+                    plugin.bulkSyncRosterInExecutor(jsonReq);
+                    replyMessage("ok", response, out);
+
+                } catch(Exception e){
+                    Log.warn("Exception for roster sync JSON=", e);
+                    replyError("IllegalArgumentException",response, out);
+                }
+                return;
+            }
+
+            // Some checking is required on the username
+            String username = java.net.URLDecoder.decode(request.getParameter("username"), "UTF-8");
+            if (username == null){
+                replyError("IllegalArgumentException",response, out);
+                return;
+            }
+
             username = username.trim().toLowerCase();
             username = JID.escapeNode(username);
             username = Stringprep.nodeprep(username);
-Log.info(String.format("REQ: %s, usrname=%s", type, username));
+            Log.info(String.format("REQ: %s, usrname=%s", type, username));
+
+            String password = request.getParameter("password");
+            String name = request.getParameter("name");
+            String email = request.getParameter("email");
+            String groupNames = request.getParameter("groups");
+            String item_jid = request.getParameter("item_jid");
+            String sub = request.getParameter("subscription");
+
+            if ((type.equals("add_roster") || type.equals("update_roster") || type.equals("delete_roster")) &&
+                    (item_jid == null || !(sub == null || sub.equals("-1") || sub.equals("0") ||
+                            sub.equals("1") || sub.equals("2") || sub.equals("3")))) {
+                replyError("IllegalArgumentException",response, out);
+                return;
+            }
+
             if ("add".equals(type)) {
                 plugin.createUser(username, password, name, email, groupNames);
                 replyMessage("ok",response, out);

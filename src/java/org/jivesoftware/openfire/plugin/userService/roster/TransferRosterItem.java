@@ -8,6 +8,8 @@ package org.jivesoftware.openfire.plugin.userService.roster;
 
 import org.codehaus.jackson.annotate.JsonAutoDetect;
 import org.codehaus.jackson.annotate.JsonProperty;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * Roster item for JSON transfer.
@@ -33,6 +35,17 @@ public class TransferRosterItem {
     
     @JsonProperty
     public String groups;
+
+    public static TransferRosterItem fromJSON(JSONObject obj) throws JSONException {
+        final TransferRosterItem tri = new TransferRosterItem();
+        tri.jid = obj.getString("jid");
+        tri.name = obj.has("name") ? obj.getString("name") : null;
+        tri.subscription = obj.has("subscription") ? obj.getInt("subscription") : null;
+        tri.recvStatus = obj.has("recvStatus") ? obj.getInt("recvStatus") : null;
+        tri.askStatus = obj.has("askStatus") ? obj.getInt("askStatus") : null;
+        tri.groups = obj.has("groups") ? obj.getString("groups") : null;
+        return tri;
+    }
 
     @Override
     public boolean equals(Object o) {
