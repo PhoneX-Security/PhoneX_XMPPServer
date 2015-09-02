@@ -40,6 +40,9 @@ public class PushExecutor extends Thread {
      */
     public void submit(String name, PushRunnable job){
         pushJobs.add(new PushJob(name, job));
+        if (!isWorking){
+            log.error("Adding jobs to a non-working executor.");
+        }
     }
 
     /**
@@ -53,7 +56,6 @@ public class PushExecutor extends Thread {
     public void run(){
         log.info("Executor thread started.");
 
-
         // Main working loop.
         while(isWorking){
             PushService svc = svcRef.get();
@@ -64,23 +66,27 @@ public class PushExecutor extends Thread {
             }
 
             while(!pushJobs.isEmpty() && isWorking){
-                PushJob pushJob = pushJobs.poll();
+                final PushJob pushJob = pushJobs.poll();
                 if (pushJob == null){
                     continue;
                 }
 
-                // Job is waiting for service reference.
-                pushJob.setSvc(svc);
+                try {
+                    // Job is waiting for service reference.
+                    pushJob.setSvc(svc);
 
-                // Run the job.
-                if (pushJob.name != null){
-                    log.info("<job_"+ pushJob.name+">");
-                }
+                    // Run the job.
+                    if (pushJob.name != null) {
+                        log.info("<job_" + pushJob.name + ">");
+                    }
 
-                pushJob.run();
+                    pushJob.run();
 
-                if (pushJob.name != null){
-                    log.info("</job_"+ pushJob.name+">");
+                    if (pushJob.name != null) {
+                        log.info("</job_" + pushJob.name + ">");
+                    }
+                } catch(Throwable t){
+                    log.error("Fatal error in executing a job", t);
                 }
             }
 
@@ -116,7 +122,7 @@ public class PushExecutor extends Thread {
         public void run() {
             try {
                 job.run(svc == null ? null : svc.get());
-            } catch(Exception e){
+            } catch(Throwable e){
                 log.error(String.format("Exception in executing a job %s", name), e);
             }
         }

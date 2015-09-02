@@ -29,7 +29,7 @@ public class Job implements Runnable {
     public void run() {
         try {
             job.run(svc == null ? null : svc.get());
-        } catch(Exception e){
+        } catch(Throwable e){
             log.error(String.format("Exception in executing a job %s", name), e);
         }
     }

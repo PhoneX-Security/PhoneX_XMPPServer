@@ -65,7 +65,7 @@ public class TaskExecutor extends Thread {
             }
 
             while(!jobs.isEmpty() && isWorking){
-                Job job = jobs.poll();
+                final Job job = jobs.poll();
                 if (job == null){
                     continue;
                 }
@@ -78,7 +78,11 @@ public class TaskExecutor extends Thread {
                     log.info("<job_"+job.getName()+">");
                 }
 
-                job.run();
+                try {
+                    job.run();
+                } catch(Throwable t){
+                    log.error("Fatal error in executing a job", t);
+                }
 
                 if (job.getName() != null){
                     log.info("</job_"+job.getName()+">");
