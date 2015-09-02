@@ -148,6 +148,10 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                     log.info("Pairing request event registered for user: " + userName);
                     pushPairingRequestEvent(userName, obj, msg);
 
+                } else if (LogoutEventMessage.PUSH.equalsIgnoreCase(pushAction)){
+                    log.info("Logout event registered for user: " + userName);
+                    pushLogoutEvent(userName, obj, msg);
+
                 } else {
                     log.info(String.format("Unknown push event: %s", pushAction));
                 }
@@ -257,6 +261,23 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         // Build push action.
         SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
         final LicenseCheckEventMessage evt = new LicenseCheckEventMessage(tstamp);
+
+        pushGenericMessage(to, msgx, evt);
+    }
+
+    /**
+     * Entry point for push message. This method gets called when plugin receives message to push license check message.
+     * to designated user.
+     * @param user
+     * @throws JSONException
+     */
+    public void pushLogoutEvent(String user, JSONObject obj, JSONObject msg) throws JSONException {
+        final JID to = new JID(user);
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+
+        // Build push action.
+        SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
+        final LogoutEventMessage evt = new LogoutEventMessage(tstamp);
 
         pushGenericMessage(to, msgx, evt);
     }
@@ -717,6 +738,12 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                 added += 1;
             } else if (PairingRequestCheckEventMessage.PUSH.equals(action)){
                 final PairingRequestCheckEventMessage evt = new PairingRequestCheckEventMessage(msg.getTstamp());
+                evt.setMessageId(msg.getId());
+
+                msgx.addPart(evt);
+                added += 1;
+            } else if (LogoutEventMessage.PUSH.equals(action)){
+                final LogoutEventMessage evt = new LogoutEventMessage(msg.getTstamp());
                 evt.setMessageId(msg.getId());
 
                 msgx.addPart(evt);
