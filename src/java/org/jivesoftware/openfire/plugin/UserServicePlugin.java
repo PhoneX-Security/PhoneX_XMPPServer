@@ -404,21 +404,27 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                 }
             } catch (Exception e) {
                 // Be tolerant to 1 user failing
-                log.warn("Problem with adding a user to the roster", e);
+                log.error("Problem with adding a user to the roster", e);
             }
         }
 
         // Delete non-existent roster items from the roster.
-        Collection<RosterItem> rosterItems = r.getRosterItems();
+        final Collection<RosterItem> rosterItems = r.getRosterItems();
         for (RosterItem ri : rosterItems) {
-            JID j = ri.getJid();
-            String jid = j.asBareJID().toString();
-            if (jidInRosterList.contains(jid) == false) {
+            final JID j = ri.getJid();
+            final String jid = j.asBareJID().toString();
+            if (!jidInRosterList.contains(jid)) {
                 unsubscribeRosterItem(prober, r, j);
+
+                try {
+                    r.deleteRosterItem(j.asBareJID(), true);
+                } catch(Exception e){
+                    log.error("Exception in deleting roster item", e);
+                }
             }
         }
 
-        // Protect current user.
+        // Protect current user, if does not have a privacy list, it will be created.
         createDefaultPrivacyList(username);
 
         // Update new roster entries added -probe presence and broadcast data.
