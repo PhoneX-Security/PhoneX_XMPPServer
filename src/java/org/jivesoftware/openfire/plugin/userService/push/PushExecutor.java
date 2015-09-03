@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Executor engine.
@@ -16,6 +17,12 @@ public class PushExecutor extends Thread {
     private final WeakReference<PushService> svcRef;
     private volatile boolean isWorking = true;
     private final ConcurrentLinkedQueue<PushJob> pushJobs = new ConcurrentLinkedQueue<PushJob>();
+
+    // Tracking last running job - deadlock detection.
+    private String lastJobName;
+    private String lastJobID;
+    private Long lastJobTimeStart;
+    private Long lastJobTimeFinish;
 
     /**
      * Default constructor.
@@ -40,8 +47,23 @@ public class PushExecutor extends Thread {
      */
     public void submit(String name, PushRunnable job){
         pushJobs.add(new PushJob(name, job));
+
         if (!isWorking){
-            log.error("Adding jobs to a non-working executor.");
+            log.info("Adding jobs to a non-working PushExecutor.");
+            log.error("Adding jobs to a non-working PushExecutor.");
+        }
+
+        // Detect long running jobs.
+        if (lastJobTimeStart != null && lastJobTimeFinish == null){
+            final long curTime = System.currentTimeMillis();
+            final long runTime = curTime - lastJobTimeStart;
+            if (runTime > 1000*10){
+                final String logInfo = String.format("PushExecutor: Long running task detected, name=%s.%s, runTime: %s, timeStart: %s",
+                        lastJobName, lastJobID, runTime, lastJobTimeStart);
+
+                log.info(logInfo);
+                log.warn(logInfo);
+            }
         }
     }
 
@@ -71,22 +93,29 @@ public class PushExecutor extends Thread {
                     continue;
                 }
 
+                lastJobName = pushJob.name;
+                lastJobID = pushJob.id;
+                lastJobTimeStart = System.currentTimeMillis();
+                lastJobTimeFinish = null;
                 try {
                     // Job is waiting for service reference.
                     pushJob.setSvc(svc);
+                    final String jobName = pushJob.name != null ? String.format("%s.%s", pushJob.name, pushJob.id) : null;
 
                     // Run the job.
-                    if (pushJob.name != null) {
-                        log.info("<job_" + pushJob.name + ">");
+                    if (jobName != null) {
+                        log.info("<job_" + jobName + ">");
                     }
 
                     pushJob.run();
 
-                    if (pushJob.name != null) {
-                        log.info("</job_" + pushJob.name + ">");
+                    if (jobName != null) {
+                        log.info("</job_" + jobName + ">");
                     }
                 } catch(Throwable t){
                     log.error("Fatal error in executing a job", t);
+                } finally {
+                    lastJobTimeFinish = System.currentTimeMillis();
                 }
             }
 
@@ -105,17 +134,22 @@ public class PushExecutor extends Thread {
      * Base class for jobs execution.
      */
     public static class PushJob implements Runnable {
+        private static final AtomicInteger ctr = new AtomicInteger(0);
+
         private final PushRunnable job;
         private String name;
         private WeakReference<PushService> svc;
+        private final String id;
 
         public PushJob(PushRunnable job) {
             this.job = job;
+            this.id = String.valueOf(ctr.getAndIncrement());
         }
 
         public PushJob(String name, PushRunnable job) {
             this.name = name;
             this.job = job;
+            this.id = String.valueOf(ctr.getAndIncrement());
         }
 
         @Override

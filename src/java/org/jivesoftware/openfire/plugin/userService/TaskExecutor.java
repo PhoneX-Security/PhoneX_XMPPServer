@@ -18,6 +18,12 @@ public class TaskExecutor extends Thread {
     private volatile boolean isWorking = true;
     private final ConcurrentLinkedQueue<Job> jobs = new ConcurrentLinkedQueue<Job>();
 
+    // Tracking last running job - deadlock detection.
+    private String lastJobName;
+    private String lastJobID;
+    private Long lastJobTimeStart;
+    private Long lastJobTimeFinish;
+
     /**
      * Default constructor.
      * @param svc
@@ -41,6 +47,19 @@ public class TaskExecutor extends Thread {
      */
     public void submit(String name, JobRunnable job){
         jobs.add(new Job(name, job));
+
+        // Detect long running jobs.
+        if (lastJobTimeStart != null && lastJobTimeFinish == null){
+            final long curTime = System.currentTimeMillis();
+            final long runTime = curTime - lastJobTimeStart;
+            if (runTime > 1000*10){
+                final String logInfo = String.format("TaskExecutor: Long running task detected, name=%s.%s, runTime: %s, timeStart: %s",
+                        lastJobName, lastJobID, runTime, lastJobTimeStart);
+
+                log.info(logInfo);
+                log.warn(logInfo);
+            }
+        }
     }
 
     /**
@@ -72,10 +91,15 @@ public class TaskExecutor extends Thread {
 
                 // Job is waiting for service reference.
                 job.setSvc(svc);
+                final String jobName = job.getName() != null ? String.format("%s.%s", job.getName(), job.getId()) : null;
+                lastJobName = job.getName();
+                lastJobID = job.getId();
+                lastJobTimeStart = System.currentTimeMillis();
+                lastJobTimeFinish = null;
 
                 // Run the job.
-                if (job.getName() != null){
-                    log.info("<job_"+job.getName()+">");
+                if (jobName != null){
+                    log.info("<job_"+jobName+">");
                 }
 
                 try {
@@ -84,9 +108,11 @@ public class TaskExecutor extends Thread {
                     log.error("Fatal error in executing a job", t);
                 }
 
-                if (job.getName() != null){
-                    log.info("</job_"+job.getName()+">");
+                if (jobName != null){
+                    log.info("</job_"+jobName+">");
                 }
+
+                lastJobTimeFinish = System.currentTimeMillis();;
             }
 
             try {
