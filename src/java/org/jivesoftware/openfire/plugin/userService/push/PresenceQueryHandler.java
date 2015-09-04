@@ -48,7 +48,7 @@ public class PresenceQueryHandler extends IQHandler implements ServerFeaturesPro
             log.info("No svc, cannot process");
             return null;
         }
-        
+
         svc.sendPresenceInfoInTaskExecutor(packet.getFrom());
         final IQ result = IQ.createResultIQ(packet);
         return result;

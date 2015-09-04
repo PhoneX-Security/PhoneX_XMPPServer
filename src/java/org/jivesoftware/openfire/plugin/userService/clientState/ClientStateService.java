@@ -178,7 +178,7 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
         // Store activity record to the database to survive service restart & cache evictions. Do it in background.
         plugin.submit("lastActivityStore", new JobRunnable() {
             @Override
-            public void run(UserServicePlugin plugin) {
+            public void run(UserServicePlugin plugin, Job job) {
                 DbEntityManager.persistLastActivity(ar);
             }
         });

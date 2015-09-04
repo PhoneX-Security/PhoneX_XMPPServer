@@ -8,6 +8,7 @@ import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.handler.IQHandler;
 import org.jivesoftware.openfire.plugin.UserServicePlugin;
+import org.jivesoftware.openfire.plugin.userService.Job;
 import org.jivesoftware.openfire.plugin.userService.JobRunnable;
 import org.jivesoftware.openfire.plugin.userService.db.DbEntityManager;
 import org.jivesoftware.openfire.plugin.userService.db.DbPushDelivery;
@@ -777,7 +778,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
     public void sendPresenceInfoInTaskExecutor(final JID from) {
         getPlugin().submit("presenceInfo", new JobRunnable() {
             @Override
-            public void run(UserServicePlugin plugin) {
+            public void run(UserServicePlugin plugin, Job job) {
                 plugin.getPushSvc().sendPresenceInfo(from);
             }
         });
@@ -821,7 +822,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                 return;
             } else {
                 log.info(String.format("Presence refresh for user %s, entries: %d", from, rosterJIDs.size()));
-                plugin.refreshPresenceInfo(from, rosterJIDs);
+                plugin.refreshPresenceInfo(from, rosterJIDs, null);
             }
         } catch (Exception e) {
             log.error("Could not refresh presence for user: " + from, e);

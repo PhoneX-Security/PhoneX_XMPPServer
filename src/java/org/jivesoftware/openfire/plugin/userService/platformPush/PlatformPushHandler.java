@@ -11,6 +11,7 @@ import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.handler.IQHandler;
 import org.jivesoftware.openfire.plugin.UserServicePlugin;
+import org.jivesoftware.openfire.plugin.userService.Job;
 import org.jivesoftware.openfire.plugin.userService.JobRunnable;
 import org.jivesoftware.openfire.plugin.userService.clientState.ActivityRecord;
 import org.jivesoftware.openfire.plugin.userService.clientState.ClientStateService;
@@ -208,7 +209,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             // Store to the database in background thread.
             plugin.submit("pushAckStore", new JobRunnable() {
                 @Override
-                public void run(UserServicePlugin plugin) {
+                public void run(UserServicePlugin plugin, Job job) {
                     // Persist all messages. If call cancellation is received, do not store it, delete message instead.
                     final int affected = DbEntityManager.persistPushAck(pack, true);
                     log.info(String.format("Push ACK received, num: %d, affected rows: %d", MiscUtils.collectionSize(pack.getMessages()), affected));
@@ -264,7 +265,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             // Store to the database in background thread.
             plugin.submit("pushReqStore", new JobRunnable() {
                 @Override
-                public void run(UserServicePlugin plugin) {
+                public void run(UserServicePlugin plugin, Job job) {
                     // Persist all messages. If call cancellation is received, do not store it, delete message instead.
                     int affected = 0;
                     final long curTime = System.currentTimeMillis();
@@ -394,7 +395,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             // Store to the database. Update if the JID is same.
             plugin.submit("tokenStore", new JobRunnable() {
                 @Override
-                public void run(UserServicePlugin plugin) {
+                public void run(UserServicePlugin plugin, Job job) {
                     DbEntityManager.persistAppleTokenConfig(tokenConfig);
 
                     // Trigger broadcast of the stored messages.
@@ -424,7 +425,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
     public void triggerUserPushRecheck(final Collection<String> users, final TokenConfig forToken){
         plugin.submit("reqRecheck", new JobRunnable() {
             @Override
-            public void run(UserServicePlugin plugin) {
+            public void run(UserServicePlugin plugin, Job job) {
                 triggerUserPushRecheckInt(users, forToken);
             }
         });

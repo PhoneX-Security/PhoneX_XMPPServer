@@ -1,6 +1,8 @@
 package org.jivesoftware.openfire.plugin.userService;
 
 import org.jivesoftware.openfire.plugin.UserServicePlugin;
+import org.jivesoftware.openfire.plugin.userService.utils.JobLogger;
+import org.jivesoftware.openfire.plugin.userService.utils.NullJobLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,6 +20,7 @@ public class Job implements Runnable {
     private String name;
     private WeakReference<UserServicePlugin> svc;
     private final String id;
+    private JobLogger logger = NullJobLogger.INSTANCE;
 
     public Job(JobRunnable job) {
         this.job = job;
@@ -33,7 +36,7 @@ public class Job implements Runnable {
     @Override
     public void run() {
         try {
-            job.run(svc == null ? null : svc.get());
+            job.run(svc == null ? null : svc.get(), this);
         } catch(Throwable e){
             log.error(String.format("Exception in executing a job %s", name), e);
         }
@@ -57,5 +60,13 @@ public class Job implements Runnable {
 
     public String getId() {
         return id;
+    }
+
+    public JobLogger getLogger() {
+        return logger;
+    }
+
+    public void setLogger(JobLogger logger) {
+        this.logger = logger;
     }
 }

@@ -1,11 +1,13 @@
 package org.jivesoftware.openfire.plugin.userService;
 
 import org.jivesoftware.openfire.plugin.UserServicePlugin;
+import org.jivesoftware.openfire.plugin.userService.utils.JobLoggerImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Executor engine.
@@ -21,8 +23,9 @@ public class TaskExecutor extends Thread {
     // Tracking last running job - deadlock detection.
     private String lastJobName;
     private String lastJobID;
-    private Long lastJobTimeStart;
-    private Long lastJobTimeFinish;
+    private final AtomicLong lastJobTimeStart = new AtomicLong(0);
+    private final AtomicLong lastJobTimeFinish = new AtomicLong(0);
+    private volatile Job lastJob;
 
     /**
      * Default constructor.
@@ -46,18 +49,33 @@ public class TaskExecutor extends Thread {
      * @param job
      */
     public void submit(String name, JobRunnable job){
-        jobs.add(new Job(name, job));
+        final Job qJob = new Job(name, job);
+
+        // For bulk roster sync, apply special logging to detect deadlocks.
+        if (name != null && name.contains("bulkRosterSync")){
+            final JobLoggerImpl jobLogger = new JobLoggerImpl();
+            jobLogger.setMessagesNumber(20);
+            qJob.setLogger(jobLogger);
+        }
+
+        jobs.add(qJob);
 
         // Detect long running jobs.
-        if (lastJobTimeStart != null && lastJobTimeFinish == null){
+        if (lastJobTimeStart.get() != 0 && lastJobTimeFinish.get() == 0){
             final long curTime = System.currentTimeMillis();
-            final long runTime = curTime - lastJobTimeStart;
+            final long runTime = curTime - lastJobTimeStart.get();
             if (runTime > 1000*10){
                 final String logInfo = String.format("TaskExecutor: Long running task detected, name=%s.%s, runTime: %s, timeStart: %s",
-                        lastJobName, lastJobID, runTime, lastJobTimeStart);
+                        lastJobName, lastJobID, runTime, lastJobTimeStart.get());
 
                 log.info(logInfo);
                 log.warn(logInfo);
+
+                // Job last logs to detect where it got was stuck.
+                if (lastJob != null) {
+                    final long threadId = Thread.currentThread().getId();
+                    log.info(String.format("Job: %s.%s, #%ss log: {{%s}}", lastJobName, lastJobID, threadId, lastJob.getLogger().dumpMessages()));
+                }
             }
         }
     }
@@ -92,10 +110,11 @@ public class TaskExecutor extends Thread {
                 // Job is waiting for service reference.
                 job.setSvc(svc);
                 final String jobName = job.getName() != null ? String.format("%s.%s", job.getName(), job.getId()) : null;
+                lastJob = job;
                 lastJobName = job.getName();
                 lastJobID = job.getId();
-                lastJobTimeStart = System.currentTimeMillis();
-                lastJobTimeFinish = null;
+                lastJobTimeStart.set(System.currentTimeMillis());
+                lastJobTimeFinish.set(0);
 
                 // Run the job.
                 if (jobName != null){
@@ -112,7 +131,7 @@ public class TaskExecutor extends Thread {
                     log.info("</job_"+jobName+">");
                 }
 
-                lastJobTimeFinish = System.currentTimeMillis();;
+                lastJobTimeFinish.set(System.currentTimeMillis());
             }
 
             try {
