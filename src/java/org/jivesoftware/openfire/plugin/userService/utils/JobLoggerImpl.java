@@ -14,10 +14,18 @@ public class JobLoggerImpl implements JobLogger {
     private int lastOffset = -1;
     private int numMessages = 0;
 
+    public JobLoggerImpl() {
+        setMessagesNumber(DEFAULT_MSG_LIMIT);
+    }
+
     @Override
     public synchronized void setMessagesNumber(int msgNum) {
         messages.ensureCapacity(msgNum);
+        messages.clear();
         msgLimit = msgNum;
+        for(int i=0; i<msgNum; i++){
+            messages.add("");
+        }
     }
 
     @Override
