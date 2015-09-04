@@ -11,13 +11,15 @@ import org.codehaus.jackson.annotate.JsonProperty;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.Serializable;
+
 /**
  * Roster item for JSON transfer.
  * @author ph4r05
  */
 
 @JsonAutoDetect
-public class TransferRosterItem {
+public class TransferRosterItem implements Serializable {
     @JsonProperty
     public String jid;
     

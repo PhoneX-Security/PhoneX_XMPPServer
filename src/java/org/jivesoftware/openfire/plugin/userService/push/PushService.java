@@ -650,6 +650,15 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
     }
 
     /**
+     * Subit task for execution in the push executor thread.
+     * @param jobName
+     * @param job
+     */
+    public void executeInPushExecutor(String jobName, PushRunnable job){
+        executor.submit(jobName, job);
+    }
+
+    /**
      * Send recent push notifications for this JID.
      * Called after on-connect or on-demand event. Transfer only non-ACKed push messages.
      * If there are no such messages, return.
@@ -792,7 +801,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      * Send all relevant presence information to this user so he can refresh its presence status info.
      * @param from
      */
-    public void sendPresenceInfo(JID from) {
+    private void sendPresenceInfo(JID from) {
         if (from == null){
             log.info("Empty address");
             return;

@@ -329,7 +329,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
      * @throws org.jivesoftware.openfire.user.UserAlreadyExistsException
      * @throws org.jivesoftware.openfire.SharedGroupException
      */
-    public void syncRoster(String username, List<TransferRosterItem> rosterList)
+    private void syncRoster(String username, List<TransferRosterItem> rosterList)
             throws UserNotFoundException, UserAlreadyExistsException, SharedGroupException {
 
         final User usr = getUser(username);
@@ -343,11 +343,17 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         }
 
         final Set<JID> newRosterEntries = new HashSet<JID>();
+        int numChanged = 0;
+        int numDeleted = 0;
 
         // Update roster according to sync data.
         for (TransferRosterItem tri : rosterList) {
-            JID j = new JID(tri.jid);
+            final JID j = new JID(tri.jid);
+
             RosterItem ri = null;
+            boolean newItem = false;
+            boolean wasChanged = false;
+
             try {
                 ri = r.getRosterItem(j);
             } catch (UserNotFoundException e) {
@@ -364,38 +370,60 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
             // Tolerance to particular problems in the contact list.
             try {
-                // If null, roster item does not exist, thus create it.
                 if (ri == null) {
+                    // If null, roster item does not exist, thus create it.
                     ri = r.createRosterItem(j, tri.name, groups, false, true);
                     newRosterEntries.add(j);
+                    newItem = true;
+                    wasChanged = true;
+
                 } else {
                     // Already exists, updating.
-                    ri.setGroups(groups);
-                    ri.setNickname(tri.name);
+                    if (!listContentMatches(ri.getGroups(), groups)) {
+                        ri.setGroups(groups);
+                        wasChanged = true;
+                    }
+
+                    if (!stringMatches(ri.getNickname(), tri.name)) {
+                        ri.setNickname(tri.name);
+                        wasChanged = true;
+                    }
                 }
 
                 // If sub status differs, add to set.
                 RosterItem.SubType subType = RosterItem.SubType.getTypeFromInt(tri.subscription);
-                if (subType.equals(ri.getSubStatus()) == false) {
+                if (!subType.equals(ri.getSubStatus())) {
                     newRosterEntries.add(j);
+                    ri.setSubStatus(subType);
+                    wasChanged = true;
                 }
 
                 // In both cases.
-                ri.setSubStatus(subType);
                 if (tri.askStatus != null) {
-                    ri.setAskStatus(RosterItem.AskType.getTypeFromInt(tri.askStatus));
-                }
-                if (tri.recvStatus != null) {
-                    ri.setRecvStatus(RosterItem.RecvType.getTypeFromInt(tri.recvStatus));
+                    final RosterItem.AskType askType = RosterItem.AskType.getTypeFromInt(tri.askStatus);
+                    if (newItem || askType != ri.getAskStatus()) {
+                        ri.setAskStatus(askType);
+                        wasChanged = true;
+                    }
                 }
 
-                r.updateRosterItem(ri);
-//                log.info(String.format("updating roster for u=%s, dest=%s, sub=%s",
-//                        username, tri.name, tri.subscription));
+                if (tri.recvStatus != null) {
+                    final RosterItem.RecvType recvStatus = RosterItem.RecvType.getTypeFromInt(tri.recvStatus);
+                    if (newItem || recvStatus != ri.getRecvStatus()) {
+                        ri.setRecvStatus(recvStatus);
+                        wasChanged = true;
+                    }
+                }
+
+                // Update roster entry only if it was changed.
+                if (newItem || wasChanged) {
+                    r.updateRosterItem(ri);
+                    numChanged += 1;
+                    log.info(String.format("Updating roster for u=%s, dest=%s, sub=%s", username, tri.name, tri.subscription));
+                }
 
                 // Protect destination user.
-                // TODO: optimize this. It sufficess to create the list when user
-                // is being created.
+                // If j does not have a privacy list, it will be created.
                 try {
                     if (server.isLocal(j)) {
                         createDefaultPrivacyList(j.getNode());
@@ -422,14 +450,19 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                 } catch(Exception e){
                     log.error("Exception in deleting roster item", e);
                 }
+
+                numDeleted += 1;
             }
         }
 
         // Protect current user, if does not have a privacy list, it will be created.
         createDefaultPrivacyList(username);
 
-        // Update new roster entries added -probe presence and broadcast data.
-        log.info(String.format("sync, new roster entries, size=%s, total=%s, prober=%s", newRosterEntries.size(), rosterList.size(), username));
+        // Update new roster entries added - probe presence and broadcast data.
+        log.info(String.format("sync, new entries size=%s, total=%s, changed=%s, deleted=%s, prober=%s",
+                newRosterEntries.size(), rosterList.size(), numChanged, numDeleted, username)
+        );
+
         if (!newRosterEntries.isEmpty()) {
             refreshPresenceInfo(prober, newRosterEntries);
         }
@@ -439,7 +472,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
      * Bulk roster synchronization.
      * @param jsonReq
      */
-    public void bulkSyncRosterInExecutor(final String jsonReq){
+    public void bulkSyncRosterInExecutor(final String jsonReq) {
         submit("bulkRosterSync", new JobRunnable() {
             @Override
             public void run(UserServicePlugin plugin) {
@@ -491,7 +524,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
             syncRoster(jid.getNode(), rosterItemList);
         }
 
-        log.info("Bulk roster finished, entry count: %d, total roster size: %d", cnt, totalRosterSize);
+        log.info(String.format("Bulk roster finished, entry count: %d, total roster size: %d", cnt, totalRosterSize));
     }
 
     /**
@@ -620,6 +653,20 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
     }
 
     /**
+     * Send all relevant presence information to this user so he can refresh its presence status info.
+     * @param master
+     * @param newRosterEntries
+     */
+    public void refreshPresenceInfoInPushExecutor(final JID master, final Collection<JID> newRosterEntries){
+        pushSvc.executeInPushExecutor("refreshPresenceInfo", new PushRunnable() {
+            @Override
+            public void run(PushService svc) {
+                svc.getPlugin().refreshPresenceInfo(master, newRosterEntries);
+            }
+        });
+    }
+
+    /**
      * Probe each other presence states for the master and all newly added roster
      * entries. Goal: update actual presence data ASAP.
      *
@@ -641,8 +688,8 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                 // Update for the remote user.
                 presenceManager.probePresence(probee, master);
             }
-        } catch (Exception ex) {
-            log.warn("Exception in probing presence state", ex);
+        } catch (Throwable ex) {
+            log.error("Exception in probing presence state", ex);
         }
     }
 
@@ -678,6 +725,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
         // Create a new privacy list for the caller, store to the database
         // and updates a cache.
+        log.info("About to create a privacy list for: " + username);
         synchronized (username.intern()) {
             try {
                 PrivacyList nlist = privListManager.createPrivacyList(username, standardPLName, standardPrivacyListElement);
@@ -687,7 +735,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                 privListManager.changeDefaultList(username, nlist, list);
                 log.info("Generated privacy list for: " + username);
             } catch (Exception e) {
-                log.warn("Exception in setting a privacy list", e);
+                log.error("Exception in setting a privacy list", e);
             }
         }
     }
@@ -1130,6 +1178,43 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
         final LocalSession locSess = (LocalSession) session;
         return (Boolean) locSess.getSessionData(ClientStateService.INACTIVE_KEY);
+    }
+
+    public static boolean stringMatches(String a, String b){
+        if (a == null && b == null) {
+            return true;
+        } else if (a == null && b != null){
+            return false;
+        } else {
+            return a.equals(b);
+        }
+    }
+
+    public static boolean listContentMatches(List<String> a, List<String> b){
+        if (a == null && b == null){
+            return true;
+        } else if (a == null){
+            return false;
+        } else if (a.isEmpty() && b.isEmpty()){
+            return true;
+        } else if (a.size() != b.size()){
+            return false;
+        }
+
+        // Both are non-null, of the same size.
+        final Set<String> as = new HashSet<String>(a);
+        final Set<String> bs = new HashSet<String>(b);
+        if (as.size() != bs.size()){
+            return false;
+        }
+
+        for(String c : as){
+            if (!bs.contains(c)){
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public UserManager getUserManager() {
