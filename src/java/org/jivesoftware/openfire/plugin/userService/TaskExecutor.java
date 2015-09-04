@@ -7,13 +7,14 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Executor engine.
  * Created by dusanklinec on 13.03.15.
  */
-public class TaskExecutor extends Thread {
+public class TaskExecutor implements Runnable{
     private static final Logger log = LoggerFactory.getLogger(TaskExecutor.class);
 
     private final WeakReference<UserServicePlugin> plugRef;
@@ -27,13 +28,23 @@ public class TaskExecutor extends Thread {
     private final AtomicLong lastJobTimeFinish = new AtomicLong(0);
     private volatile Job lastJob;
 
+    // Worker thread
+    private Thread wThread;
+    private final AtomicInteger threadCnt = new AtomicInteger(0);
+
     /**
      * Default constructor.
      * @param svc
      */
     public TaskExecutor(UserServicePlugin svc) {
         this.plugRef = new WeakReference<UserServicePlugin>(svc);
-        this.setName("TaskExecutor");
+    }
+
+    /**
+     * Starting an executor.
+     */
+    public void start(){
+        startWorkerThread();
     }
 
     /**
@@ -81,6 +92,30 @@ public class TaskExecutor extends Thread {
     }
 
     /**
+     * Starts a new worker thread.
+     */
+    protected synchronized void startWorkerThread(){
+        final String threadName = "TaskExecutor." + threadCnt.getAndIncrement();
+        wThread = new Thread(this, threadName);
+        wThread.start();
+
+        log.info(String.format("Executor thread started: %s, tid: %s", threadName, wThread.getId()));
+    }
+
+    /**
+     * Tries to drastically restart the executor.
+     */
+    protected synchronized void restartExecutor(){
+        if (wThread == null){
+            log.warn("Working thread is null");
+            return;
+        }
+
+        wThread.interrupt();
+        startWorkerThread();
+    }
+
+    /**
      * Submit a job to the executor.
      * @param job
      */
@@ -88,12 +123,17 @@ public class TaskExecutor extends Thread {
         jobs.add(job);
     }
 
+    /**
+     * Main runnable to be executed by working thread.
+     */
     public void run(){
-        log.info("Job Executor thread started.");
-
+        final long threadId = Thread.currentThread().getId();
+        log.info(String.format("Job Executor thread started, name: %s, tid: %s",
+                Thread.currentThread().getName(),
+                threadId));
 
         // Main working loop.
-        while(isWorking){
+        while(isWorking && !Thread.interrupted()){
             UserServicePlugin svc = plugRef.get();
             if (svc == null){
                 isWorking = false;
@@ -118,7 +158,7 @@ public class TaskExecutor extends Thread {
 
                 // Run the job.
                 if (jobName != null){
-                    log.info("<job_"+jobName+">");
+                    log.info("<job_"+jobName+" threadId="+threadId+">");
                 }
 
                 try {
@@ -128,14 +168,17 @@ public class TaskExecutor extends Thread {
                 }
 
                 if (jobName != null){
-                    log.info("</job_"+jobName+">");
+                    log.info("</job_"+jobName+" threadId="+threadId+">");
                 }
 
                 lastJobTimeFinish.set(System.currentTimeMillis());
             }
 
             try {
-                Thread.sleep(150);
+                Thread.sleep(10);
+            } catch (InterruptedException ie){
+                log.warn("Thread interrupted", ie);
+                break;
             } catch (Exception e) {
                 log.error("Sleep interrupted", e);
                 break;
