@@ -141,7 +141,7 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
 
                 // Push all current presence updates to the user.
                 if (active){
-                    plugin.getPushSvc().sendPresenceInfoInExecutor(from);
+                    plugin.getPushSvc().sendPresenceInfoInTaskExecutor(from);
                 }
 
             } else {

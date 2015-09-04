@@ -8,6 +8,7 @@ import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.handler.IQHandler;
 import org.jivesoftware.openfire.plugin.UserServicePlugin;
+import org.jivesoftware.openfire.plugin.userService.JobRunnable;
 import org.jivesoftware.openfire.plugin.userService.db.DbEntityManager;
 import org.jivesoftware.openfire.plugin.userService.db.DbPushDelivery;
 import org.jivesoftware.openfire.plugin.userService.db.DbPushMessage;
@@ -764,8 +765,18 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         sendPush(from.asBareJID(), msgx);
     }
 
+    public void sendPresenceInfoInTaskExecutor(final JID from) {
+        getPlugin().submit("presenceInfo", new JobRunnable() {
+            @Override
+            public void run(UserServicePlugin plugin) {
+                plugin.getPushSvc().sendPresenceInfo(from);
+            }
+        });
+    }
+
     /**
      * Send all relevant presence information to this user so he can refresh its presence status info.
+     * @deprecated as calling presenceInfo together with bulkroster sync on a different thread for the same user caused deadlocks.
      * @param from
      */
     public void sendPresenceInfoInExecutor(final JID from){

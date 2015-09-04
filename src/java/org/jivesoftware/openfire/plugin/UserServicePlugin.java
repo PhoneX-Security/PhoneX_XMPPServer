@@ -42,6 +42,7 @@ import org.jivesoftware.openfire.plugin.userService.clientState.ClientStateServi
 import org.jivesoftware.openfire.plugin.userService.geoip.GeoIpHolder;
 import org.jivesoftware.openfire.plugin.userService.platformPush.PlatformPushHandler;
 import org.jivesoftware.openfire.plugin.userService.platformPush.TokenConfig;
+import org.jivesoftware.openfire.plugin.userService.push.PushRunnable;
 import org.jivesoftware.openfire.plugin.userService.push.PushService;
 import org.jivesoftware.openfire.plugin.userService.roster.TransferRosterItem;
 import org.jivesoftware.openfire.plugin.userService.utils.LRUCache;
