@@ -8,7 +8,7 @@ import java.util.ArrayList;
  */
 public class JobLoggerImpl implements JobLogger {
 
-    private static final int DEFAULT_MSG_LIMIT = 3;
+    private static final int DEFAULT_MSG_LIMIT = 50;
     private final ArrayList<String> messages = new ArrayList<String>(3);
     private int msgLimit = 3;
     private int lastOffset = -1;

@@ -89,7 +89,9 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
     @Override
     public IQ handleIQ(IQ packet) throws UnauthorizedException {
         final IQ.Type iqType = packet.getType();
-        log.info(String.format("Handle IQ[clientState] packetType: %s, from: %s, to: %s", iqType, packet.getFrom(), packet.getTo()));
+        log.info(String.format("Handle IQ[clientState] packetType: %s, from: %s, to: %s, tstamp: %d",
+                iqType, packet.getFrom(), packet.getTo(), System.currentTimeMillis()));
+
         log.info(packet.toString());
 
         if (plugin == null){

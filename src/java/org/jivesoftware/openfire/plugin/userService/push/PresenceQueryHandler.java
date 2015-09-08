@@ -35,7 +35,9 @@ public class PresenceQueryHandler extends IQHandler implements ServerFeaturesPro
     @Override
     public IQ handleIQ(IQ packet) throws UnauthorizedException {
         final IQ.Type iqType = packet.getType();
-        log.info(String.format("Handle IQ[presenceQuery] packetType: %s, from: %s, to: %s", iqType, packet.getFrom(), packet.getTo()));
+        log.info(String.format("Handle IQ[presenceQuery] packetType: %s, from: %s, to: %s, tstamp: %d",
+                iqType, packet.getFrom(), packet.getTo(), System.currentTimeMillis()));
+        
         log.info(packet.toString());
 
         // Handle only specific get requests.

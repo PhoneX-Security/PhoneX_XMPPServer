@@ -118,6 +118,7 @@ public class AMQPListener extends BackgroundThreadService {
             final String consumerTag = consumer.getConsumerTag();
             log.info(String.format("Consumer tag: %s", consumerTag));
 
+            final long threadId = Thread.currentThread().getId();
             final String serverConsumerTag = channel.basicConsume(QUEUE_XMPP_NAME, false, consumer);
             log.info(String.format("Server consumer tag: %s", serverConsumerTag));
 
@@ -128,7 +129,7 @@ public class AMQPListener extends BackgroundThreadService {
                 }
 
                 final long deliveryTag = delivery.getEnvelope().getDeliveryTag();
-                log.info(String.format("Valid message received, tag=%d", deliveryTag));
+                log.info(String.format("Valid message received, tag=%d, tid=%d", deliveryTag, threadId));
 
                 // Ack message here.
                 channel.basicAck(deliveryTag, false);

@@ -811,8 +811,8 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
         try {
             log.info(String.format("Going to send presence for roster for: %s, node: %s", from, from.getNode()));
 
-            final Roster roster = plugin.getRosterManager().getRoster(from.getNode());
             final List<JID> rosterJIDs = new LinkedList<JID>();
+            final Roster roster = plugin.getRosterManager().getRoster(from.getNode());
             for (RosterItem rosterItem : roster.getRosterItems()) {
                 rosterJIDs.add(rosterItem.getJid().asBareJID());
             }
