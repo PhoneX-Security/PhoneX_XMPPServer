@@ -65,7 +65,7 @@ public class TaskExecutor implements Runnable{
         // For bulk roster sync, apply special logging to detect deadlocks.
         if (name != null && name.contains("bulkRosterSync")){
             final JobLoggerImpl jobLogger = new JobLoggerImpl();
-            jobLogger.setMessagesNumber(20);
+            jobLogger.setMessagesNumber(40);
             qJob.setLogger(jobLogger);
         }
 
@@ -88,6 +88,11 @@ public class TaskExecutor implements Runnable{
                     log.info(String.format("Job: %s.%s, #%ss log: {{%s}}", lastJobName, lastJobID, threadId, lastJob.getLogger().dumpMessages()));
                 }
             }
+//
+//            if (runTime > (1000l * 60l * 5l)){
+//                log.info("Trying to kill frozen thread");
+//                restartExecutor();
+//            }
         }
     }
 
@@ -111,7 +116,28 @@ public class TaskExecutor implements Runnable{
             return;
         }
 
-        wThread.interrupt();
+        // If already has 2 running threads, do nothing - restart did not went well probably.
+        if (threadCnt.get() >= 3){
+            log.info("Not going to start a new thread, thread counter too big");
+            return;
+        }
+
+        // Try to kill worker thread.
+        try {
+            wThread.interrupt();
+            wThread.interrupt();
+        } catch(Exception e){
+            log.error("Exception in interrupting worker thread");
+        }
+
+        // Give it some time.
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            log.error("Sleep interrupted");
+        }
+
+        // Spawn a new worker thread to keep executor running.
         startWorkerThread();
     }
 
