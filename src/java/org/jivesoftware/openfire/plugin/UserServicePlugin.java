@@ -346,17 +346,18 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
      * @throws org.jivesoftware.openfire.user.UserAlreadyExistsException
      * @throws org.jivesoftware.openfire.SharedGroupException
      */
-    private void syncRoster(String username, List<TransferRosterItem> rosterList, Job job)
+    private void syncRoster(final String username, List<TransferRosterItem> rosterList, Job job)
             throws UserNotFoundException, UserAlreadyExistsException, SharedGroupException {
 
         final User usr = getUser(username);
         final JID prober = server.createJID(username, null);
         final JobLogger logger = job == null ? null : job.getLogger();
+        final long threadId = Thread.currentThread().getId();
 
         final Set<String> jidInRosterList = new HashSet<String>();
         for (TransferRosterItem tri : rosterList) {
             JID j = new JID(tri.jid);
-            jidInRosterList.add(j.toBareJID().toString());
+            jidInRosterList.add(j.toBareJID());
         }
 
         final Set<JID> newRosterEntries = new HashSet<JID>();
@@ -365,8 +366,8 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
         // Update roster according to sync data.
         log2ger(logger, "csync", "Starting clist sync for user %s", username);
-        final Roster r = rosterManager.getRoster(username);
         for (TransferRosterItem tri : rosterList) {
+            log2ger(logger, "csync", "Roster sync %s, new iteration on %s", username, tri.name);
             final JID j = new JID(tri.jid);
 
             RosterItem ri = null;
@@ -376,7 +377,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
             log.debug(String.format("Roster sync %s, processing %s", username, j));
 
             try {
-                ri = r.getRosterItem(j);
+                ri = rosterManager.getRoster(username).getRosterItem(j);
             } catch (UserNotFoundException e) {
                 //Roster item does not exist. Try to add it.
             }
@@ -396,7 +397,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                     log2ger(logger, "csync", "Roster sync %s, creating roster item %s", username, j);
                     log.debug(String.format("Roster sync %s, creating roster item %s", username, j));
 
-                    ri = r.createRosterItem(j, tri.name, groups, false, true);
+                    ri = rosterManager.getRoster(username).createRosterItem(j, tri.name, groups, false, true);
                     newRosterEntries.add(j);
                     newItem = true;
                     wasChanged = true;
@@ -420,11 +421,15 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                 RosterItem.SubType subType = RosterItem.SubType.getTypeFromInt(tri.subscription);
                 if (!subType.equals(ri.getSubStatus())) {
                     newRosterEntries.add(j);
+
+                    // Set sub status leads to synchronizing on user name
+                    log2ger(logger, "csync", "Roster sync %s, processing %s, set sub status", username, j);
                     ri.setSubStatus(subType);
                     wasChanged = true;
                 }
 
                 // In both cases.
+                log2ger(logger, "csync", "Roster sync %s, processing %s, askStatus, recvStatus", username, j);
                 if (tri.askStatus != null) {
                     final RosterItem.AskType askType = RosterItem.AskType.getTypeFromInt(tri.askStatus);
                     if (newItem || askType != ri.getAskStatus()) {
@@ -444,9 +449,10 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                 // Update roster entry only if it was changed.
                 if (newItem || wasChanged) {
                     log2ger(logger, "csync", "Updating roster for u=%s, dest=%s, sub=%s, isNew=%s", username, tri.name, tri.subscription, newItem);
-                    log.info(String.format("Updating roster for u=%s, dest=%s, sub=%s, isNew=%s", username, tri.name, tri.subscription, newItem));
+                    log.info(String.format("#%d Updating roster for u=%s, dest=%s, sub=%s, isNew=%s, tstamp=%d",
+                            threadId, username, tri.name, tri.subscription, newItem, System.currentTimeMillis()));
 
-                    r.updateRosterItem(ri);
+                    rosterManager.getRoster(username).updateRosterItem(ri);
                     numChanged += 1;
 
                     log2ger(logger, "csync", "Updated roster for u=%s, dest=%s, sub=%s, isNew=%s", username, tri.name, tri.subscription, newItem);
@@ -473,20 +479,20 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         // Delete non-existent roster items from the roster.
         log.debug("Deleting roster entries");
         log2ger(logger, "csync", "Deleting roster entries");
-        final Collection<RosterItem> rosterItems = r.getRosterItems();
+        final Collection<RosterItem> rosterItems = rosterManager.getRoster(username).getRosterItems();
         for (RosterItem ri : rosterItems) {
             final JID j = ri.getJid();
             final String jid = j.asBareJID().toString();
             if (!jidInRosterList.contains(jid)) {
                 log2ger(logger, "csync", "Unsubscribing %s, totalSize: %s", jid, rosterItems.size());
                 log.debug("Unsubscribing: " + jid + "; totalSize: " + rosterItems.size());
-                unsubscribeRosterItem(prober, r, j);
+                unsubscribeRosterItem(prober, rosterManager.getRoster(username), j);
 
                 try {
                     log.debug("About to delete roster item: " + j);
                     log2ger(logger, "csync", "About to delete roster item: %s", j);
 
-                    r.deleteRosterItem(j.asBareJID(), true);
+                    rosterManager.getRoster(username).deleteRosterItem(j.asBareJID(), true);
 
                     log2ger(logger, "csync", "User %s deleted from roster", j);
 
@@ -504,8 +510,8 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         createDefaultPrivacyList(username);
 
         // Update new roster entries added - probe presence and broadcast data.
-        log.info(String.format("sync, new entries size=%s, total=%s, changed=%s, deleted=%s, prober=%s",
-                newRosterEntries.size(), rosterList.size(), numChanged, numDeleted, username)
+        log.info(String.format("sync, new entries size=%s, total=%s, changed=%s, deleted=%s, prober=%s, tstamp=%d",
+                newRosterEntries.size(), rosterList.size(), numChanged, numDeleted, username, System.currentTimeMillis())
         );
 
         if (!newRosterEntries.isEmpty()) {
@@ -776,7 +782,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
         // Create a new privacy list for the caller, store to the database
         // and updates a cache.
-        log.info("About to create a privacy list for: " + username);
+        log.info("About to create a privacy list for: " + username + "; tstamp: " + System.currentTimeMillis());
         synchronized (username.intern()) {
             try {
                 PrivacyList nlist = privListManager.createPrivacyList(username, standardPLName, standardPrivacyListElement);
@@ -784,11 +790,12 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
                 // Update as master.
                 privListManager.changeDefaultList(username, nlist, list);
-                log.info("Generated privacy list for: " + username);
             } catch (Exception e) {
                 log.error("Exception in setting a privacy list", e);
             }
         }
+
+        log.info("Generated privacy list for: " + username + "; tstamp: " + System.currentTimeMillis());
     }
 
     /**
