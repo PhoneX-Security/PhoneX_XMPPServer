@@ -6,8 +6,8 @@ INSERT INTO ofVersion (name, version) VALUES ('userservice', 2);
 CREATE TABLE ofPushMessages (
    msgId            BIGINT            NOT NULL AUTO_INCREMENT,
    msgAction        VARCHAR(64)       NOT NULL,
-   msgTime          DATETIME          NOT NULL,
-   msgExpire        DATETIME          NULL,
+   msgTime          TIMESTAMP         NOT NULL,
+   msgExpire        TIMESTAMP         NULL,
    forUser          VARCHAR(255)      NOT NULL,
    forResource      VARCHAR(255)      NOT NULL,
    isDurable        INT               NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE ofPushMessages (
 CREATE TABLE ofPushDelivery (
    dlvrID       BIGINT                NOT NULL AUTO_INCREMENT,
    msgId        BIGINT                NOT NULL,
-   dlvrTime     DATETIME              NOT NULL,
+   dlvrTime     TIMESTAMP             NOT NULL,
    forUser      VARCHAR(255)          NOT NULL,
    forResource  VARCHAR(255)          NOT NULL,
    dlvrStatus   INT                   NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE ofPushTokenApple (
 	ofOsVersion   VARCHAR(32)  NULL,
 	ofLangs       VARCHAR(255) NULL,
 	ofDebug       TINYINT      NOT NULL DEFAULT 0,
-	ofLastUpdate  DATETIME     NOT NULL,
+	ofLastUpdate  TIMESTAMP    NOT NULL,
 	ofAuxJson     TEXT         NULL,
   PRIMARY KEY (ofUser, ofResource)
 ) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
@@ -50,7 +50,7 @@ CREATE TABLE ofPushTokenApple (
 CREATE TABLE ofPhxLastActivity (
    ofUser         VARCHAR(255) NOT NULL,
    ofResource     VARCHAR(255) NOT NULL,
-   ofActTime      DATETIME     NOT NULL,
+   ofActTime      TIMESTAMP    NOT NULL,
    ofLastStatus   INT          NOT NULL DEFAULT 1,
    PRIMARY KEY (ofUser, ofResource)
 ) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
@@ -59,8 +59,8 @@ CREATE TABLE ofPhxPlatformMessages (
    ofMsgId            BIGINT            NOT NULL AUTO_INCREMENT,
    ofMsgKey           VARCHAR(64)       NULL,
    ofMsgAction        VARCHAR(64)       NOT NULL,
-   ofMsgTime          DATETIME          NOT NULL,
-   ofMsgExpire        DATETIME          NULL,
+   ofMsgTime          TIMESTAMP         NOT NULL,
+   ofMsgExpire        TIMESTAMP         NULL,
    ofForUser          VARCHAR(255)      NOT NULL,
    ofForResource      VARCHAR(255)      NULL,
    ofFromUser         VARCHAR(255)      NULL,
