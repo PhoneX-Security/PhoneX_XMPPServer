@@ -60,8 +60,8 @@ public class DbEntityManager {
      * @throws SQLException
      */
     public static Long getTimeStamp(ResultSet rs, String colname) throws SQLException {
-        final Date date = rs.getDate(colname);
-        return date == null ? null : date.getTime();
+        final Timestamp tstamp = rs.getTimestamp(colname);
+        return tstamp == null ? null : tstamp.getTime();
     }
 
     /**
@@ -77,10 +77,9 @@ public class DbEntityManager {
         DbPushMessage msg = null;
         try {
             msg = new DbPushMessage();
-
             msg.setId(rs.getLong(DbPushMessage.FIELD_ID));
             msg.setAction(rs.getString(DbPushMessage.FIELD_ACTION));
-            msg.setTstamp(rs.getDate(DbPushMessage.FIELD_TIME).getTime());
+            msg.setTstamp(getTimeStamp(rs, DbPushMessage.FIELD_TIME));
             msg.setExpireTstamp(getTimeStamp(rs, DbPushMessage.FIELD_EXPIRE_TIME));
             msg.setToUser(rs.getString(DbPushMessage.FIELD_USER));
             msg.setToResource(rs.getString(DbPushMessage.FIELD_RESOURCE));
@@ -148,7 +147,7 @@ public class DbEntityManager {
             msg = new DbPushDelivery();
             msg.setId(rs.getLong(DbPushDelivery.FIELD_ID));
             msg.setPushMessageId(rs.getLong(DbPushDelivery.FIELD_MSG_ID));
-            msg.setTstamp(rs.getDate(DbPushDelivery.FIELD_TIME).getTime());
+            msg.setTstamp(getTimeStamp(rs, DbPushDelivery.FIELD_TIME));
             msg.setUser(rs.getString(DbPushDelivery.FIELD_USER));
             msg.setResource(rs.getString(DbPushDelivery.FIELD_RESOURCE));
             msg.setStatus(rs.getInt(DbPushDelivery.FIELD_STATUS));
@@ -178,7 +177,7 @@ public class DbEntityManager {
 
             ar = new ActivityRecord();
             ar.setUser(jid);
-            ar.setLastActiveMilli(rs.getDate(ActivityRecord.FIELD_ACT_TIME).getTime());
+            ar.setLastActiveMilli(getTimeStamp(rs, ActivityRecord.FIELD_ACT_TIME));
             ar.setLastState(rs.getInt(ActivityRecord.FIELD_LAST_STATUS));
 
         } catch(Exception e){
