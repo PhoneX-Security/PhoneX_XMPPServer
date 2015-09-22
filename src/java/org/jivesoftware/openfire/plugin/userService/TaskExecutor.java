@@ -31,6 +31,7 @@ public class TaskExecutor implements Runnable{
     // Worker thread
     private Thread wThread;
     private final AtomicInteger threadCnt = new AtomicInteger(0);
+    private final AtomicInteger numDeadlockDetections = new AtomicInteger(0);
 
     /**
      * Default constructor.
@@ -65,19 +66,39 @@ public class TaskExecutor implements Runnable{
         // For bulk roster sync, apply special logging to detect deadlocks.
         if (name != null && name.contains("bulkRosterSync")){
             final JobLoggerImpl jobLogger = new JobLoggerImpl();
-            jobLogger.setMessagesNumber(40);
+            jobLogger.setMessagesNumber(250);
             qJob.setLogger(jobLogger);
         }
 
+        // Check queue size.
+        final int jobSize = jobs.size();
+        log.info(String.format("Adding task to executor [%s], jobQueueSize: %d, curTimestamp: %d",
+                qJob.getTaskName(), jobSize, System.currentTimeMillis()));
+
+        // Add the job to the queue
         jobs.add(qJob);
 
         // Detect long running jobs.
         if (lastJobTimeStart.get() != 0 && lastJobTimeFinish.get() == 0){
             final long curTime = System.currentTimeMillis();
             final long runTime = curTime - lastJobTimeStart.get();
-            if (runTime > 1000*10){
-                final String logInfo = String.format("TaskExecutor: Long running task detected, name=%s.%s, runTime: %s, timeStart: %s",
-                        lastJobName, lastJobID, runTime, lastJobTimeStart.get());
+
+            // Give it a time, might be a long running task
+            if (runTime < 1000*10){
+                return;
+            }
+
+            // Now we are talking about deadlocked thread.
+            if (numDeadlockDetections.incrementAndGet() > 2){
+                log.warn(String.format("TaskExecutor deadlocked by name=%s.%s, runTime: %s, timeStart: %s, now: %s, detections: %s",
+                        lastJobName, lastJobID, runTime, lastJobTimeStart.get(), System.currentTimeMillis(), numDeadlockDetections.get()));
+
+                log.info(String.format("TaskExecutor deadlocked by name=%s.%s, runTime: %s, timeStart: %s, now: %s, detections: %s",
+                        lastJobName, lastJobID, runTime, lastJobTimeStart.get(), System.currentTimeMillis(), numDeadlockDetections.get()));
+
+            } else {
+                final String logInfo = String.format("TaskExecutor: Long running task detected, name=%s.%s, runTime: %s, timeStart: %s, now: %s",
+                        lastJobName, lastJobID, runTime, lastJobTimeStart.get(), System.currentTimeMillis());
 
                 log.info(logInfo);
                 log.warn(logInfo);
@@ -86,9 +107,11 @@ public class TaskExecutor implements Runnable{
                 if (lastJob != null) {
                     final long threadId = Thread.currentThread().getId();
                     log.info(String.format("Job: %s.%s, #%ss log: {{%s}}", lastJobName, lastJobID, threadId, lastJob.getLogger().dumpMessages()));
+                } else {
+                    log.info("Last job was null, cannot provide debug info");
                 }
             }
-//
+
 //            if (runTime > (1000l * 60l * 5l)){
 //                log.info("Trying to kill frozen thread");
 //                restartExecutor();
@@ -117,7 +140,7 @@ public class TaskExecutor implements Runnable{
         }
 
         // If already has 2 running threads, do nothing - restart did not went well probably.
-        if (threadCnt.get() >= 3){
+        if (threadCnt.get() >= 2){
             log.info("Not going to start a new thread, thread counter too big");
             return;
         }
@@ -127,14 +150,14 @@ public class TaskExecutor implements Runnable{
             wThread.interrupt();
             wThread.interrupt();
         } catch(Exception e){
-            log.error("Exception in interrupting worker thread");
+            log.error("Exception in interrupting worker thread", e);
         }
 
         // Give it some time.
         try {
             Thread.sleep(500);
         } catch (InterruptedException e) {
-            log.error("Sleep interrupted");
+            log.error("Sleep interrupted", e);
         }
 
         // Spawn a new worker thread to keep executor running.

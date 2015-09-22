@@ -42,12 +42,10 @@ import org.jivesoftware.openfire.plugin.userService.amqp.AMQPMsgListener;
 import org.jivesoftware.openfire.plugin.userService.clientState.ClientStateService;
 import org.jivesoftware.openfire.plugin.userService.geoip.GeoIpHolder;
 import org.jivesoftware.openfire.plugin.userService.platformPush.PlatformPushHandler;
-import org.jivesoftware.openfire.plugin.userService.platformPush.TokenConfig;
 import org.jivesoftware.openfire.plugin.userService.push.PushRunnable;
 import org.jivesoftware.openfire.plugin.userService.push.PushService;
 import org.jivesoftware.openfire.plugin.userService.roster.TransferRosterItem;
 import org.jivesoftware.openfire.plugin.userService.utils.JobLogger;
-import org.jivesoftware.openfire.plugin.userService.utils.LRUCache;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
 import org.jivesoftware.openfire.roster.Roster;
@@ -429,7 +427,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                 }
 
                 // In both cases.
-                log2ger(logger, "csync", "Roster sync %s, processing %s, askStatus, recvStatus", username, j);
+                log2ger(logger, "csync", "Roster sync %s, processing %s, askStatus", username, j);
                 if (tri.askStatus != null) {
                     final RosterItem.AskType askType = RosterItem.AskType.getTypeFromInt(tri.askStatus);
                     if (newItem || askType != ri.getAskStatus()) {
@@ -438,6 +436,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                     }
                 }
 
+                log2ger(logger, "csync", "Roster sync %s, processing %s, recvStatus", username, j);
                 if (tri.recvStatus != null) {
                     final RosterItem.RecvType recvStatus = RosterItem.RecvType.getTypeFromInt(tri.recvStatus);
                     if (newItem || recvStatus != ri.getRecvStatus()) {
@@ -460,16 +459,17 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
                 // Protect destination user.
                 // If j does not have a privacy list, it will be created.
+                log2ger(logger, "csync", "Roster sync %s, processing %s, localCheck", username, j);
                 try {
                     if (server.isLocal(j)) {
                         log2ger(logger, "csync", "Local user %s, create privacy list", j);
                         createDefaultPrivacyList(j.getNode());
                     }
-                } catch (Exception ex) {
+                } catch (Throwable ex) {
                     log2ger(logger, "csync", "Problem with creating a default privacy list");
                     log.error("Problem with creating a default privacy list", ex);
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 // Be tolerant to 1 user failing
                 log2ger(logger, "csync", "Problem with adding a user to the roster");
                 log.error("Problem with adding a user to the roster", e);

@@ -38,7 +38,7 @@ public class Job implements Runnable {
         try {
             job.run(svc == null ? null : svc.get(), this);
         } catch(Throwable e){
-            log.error(String.format("Exception in executing a job %s", name), e);
+            log.error(String.format("Exception in executing a job %s", getTaskName()), e);
         }
     }
 
@@ -68,5 +68,9 @@ public class Job implements Runnable {
 
     public void setLogger(JobLogger logger) {
         this.logger = logger;
+    }
+
+    public String getTaskName(){
+        return name + "." + id;
     }
 }
