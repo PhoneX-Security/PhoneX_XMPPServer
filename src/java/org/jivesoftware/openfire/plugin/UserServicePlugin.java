@@ -462,10 +462,10 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
                 // Protect destination user.
                 // If j does not have a privacy list, it will be created.
-                log2ger(logger, "csync", "Roster sync %s, processing %s, localCheck", username, j);
                 try {
+                    log2ger(logger, "csync", "Roster sync %s, processing %s, localCheck", username, j);
                     if (server.isLocal(j)) {
-                        log2ger(logger, "csync", "Local user %s, create privacy list", j);
+                        log2ger(logger, "csync", "Roster sync %s, local user, create privacy list", j);
                         createDefaultPrivacyList(j.getNode(), logger);
                     }
                 } catch (Throwable ex) {
@@ -780,6 +780,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         final PrivacyListManager privListManager = PrivacyListManager.getInstance();
         final PrivacyList list = privListManager.getDefaultPrivacyList(username);
         if (list != null && standardPLName.equals(list.getName())) {
+            log2ger(jobLogger, "csync", "Privacy list is in sync for %s", username);
             return;
         }
 
