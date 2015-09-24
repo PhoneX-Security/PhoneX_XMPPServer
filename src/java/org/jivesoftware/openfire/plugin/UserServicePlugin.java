@@ -463,7 +463,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
                 try {
                     if (server.isLocal(j)) {
                         log2ger(logger, "csync", "Local user %s, create privacy list", j);
-                        createDefaultPrivacyList(j.getNode());
+                        createDefaultPrivacyList(j.getNode(), logger);
                     }
                 } catch (Throwable ex) {
                     log2ger(logger, "csync", "Problem with creating a default privacy list");
@@ -507,7 +507,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
         // Protect current user, if does not have a privacy list, it will be created.
         log2ger(logger, "csync", "Privacy list for me");
-        createDefaultPrivacyList(username);
+        createDefaultPrivacyList(username, logger);
 
         // Update new roster entries added - probe presence and broadcast data.
         log.info(String.format("sync, new entries size=%s, total=%s, changed=%s, deleted=%s, prober=%s, tstamp=%d",
@@ -773,7 +773,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
      *
      * @param username
      */
-    private void createDefaultPrivacyList(String username) {
+    private void createDefaultPrivacyList(String username, final JobLogger jobLogger) {
         final PrivacyListManager privListManager = PrivacyListManager.getInstance();
         final PrivacyList list = privListManager.getDefaultPrivacyList(username);
         if (list != null && standardPLName.equals(list.getName())) {
@@ -782,7 +782,9 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
         // Create a new privacy list for the caller, store to the database
         // and updates a cache.
+        log2ger(jobLogger, "csync", "About to create a privacy list for %s", username);
         log.info("About to create a privacy list for: " + username + "; tstamp: " + System.currentTimeMillis());
+
 //        synchronized (username.intern()) {
             try {
                 PrivacyList nlist = privListManager.createPrivacyList(username, standardPLName, standardPrivacyListElement);
@@ -795,6 +797,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
             }
 //        }
 
+        log2ger(jobLogger, "csync", "Generated privacy list for: %s", username);
         log.info("Generated privacy list for: " + username + "; tstamp: " + System.currentTimeMillis());
     }
 
