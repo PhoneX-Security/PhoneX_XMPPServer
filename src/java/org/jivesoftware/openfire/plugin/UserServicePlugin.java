@@ -57,10 +57,7 @@ import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
-import org.jivesoftware.util.JiveGlobals;
-import org.jivesoftware.util.PropertyEventDispatcher;
-import org.jivesoftware.util.PropertyEventListener;
-import org.jivesoftware.util.StringUtils;
+import org.jivesoftware.util.*;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -77,6 +74,7 @@ import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.LinkedList;
 
 /**
  * Plugin that allows the administration of users via HTTP requests.
@@ -176,6 +174,11 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }
+
+        // Administrator notification.
+        notifyAdminByMail("System started",
+                String.format("Please note the PhoneX Openfire plugin was loaded " +
+                "%s, millistamp: %d.", new Date(), System.currentTimeMillis()));
     }
 
     @Override
@@ -1197,6 +1200,22 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         } catch (Exception ex) {
             log.warn("Exception in processing a new message");
         }
+    }
+
+    /**
+     * Sends email notification to administrator.
+     *
+     * @param subject
+     * @param body
+     */
+    public void notifyAdminByMail(String subject, String body){
+        EmailService.getInstance().sendMessage(
+                "PhoneX Administrator", "sysnotif@phone-x.net",
+                "PhoneX Openfire", "root@pmail.net-wings.eu",
+                subject,
+                body,
+                null
+        );
     }
 
     /**

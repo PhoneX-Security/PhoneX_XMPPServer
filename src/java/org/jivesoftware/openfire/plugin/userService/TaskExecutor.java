@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
+import java.util.Date;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -88,27 +89,47 @@ public class TaskExecutor implements Runnable{
                 return;
             }
 
+            // Mail notification body;
+            final StringBuilder sb = new StringBuilder();
+
             // Now we are talking about deadlocked thread.
             if (numDeadlockDetections.incrementAndGet() > 2){
-                log.warn(String.format("TaskExecutor deadlocked by name=%s.%s, runTime: %s, timeStart: %s, now: %s, detections: %s",
-                        lastJobName, lastJobID, runTime, lastJobTimeStart.get(), System.currentTimeMillis(), numDeadlockDetections.get()));
+                final String deadLockMsg = String.format("TaskExecutor deadlocked by name=%s.%s, runTime: %s, timeStart: %s, now: %s, %s, detections: %s",
+                        lastJobName, lastJobID, runTime, lastJobTimeStart.get(), System.currentTimeMillis(), new Date(), numDeadlockDetections.get());
 
-                log.info(String.format("TaskExecutor deadlocked by name=%s.%s, runTime: %s, timeStart: %s, now: %s, detections: %s",
-                        lastJobName, lastJobID, runTime, lastJobTimeStart.get(), System.currentTimeMillis(), numDeadlockDetections.get()));
+                log.warn(deadLockMsg);
+                log.info(deadLockMsg);
 
             } else {
-                final String logInfo = String.format("TaskExecutor: Long running task detected, name=%s.%s, runTime: %s, timeStart: %s, now: %s",
-                        lastJobName, lastJobID, runTime, lastJobTimeStart.get(), System.currentTimeMillis());
+                final String logInfo = String.format("TaskExecutor: Long running task detected, name=%s.%s, runTime: %s, timeStart: %s, now: %s, %s",
+                        lastJobName, lastJobID, runTime, lastJobTimeStart.get(), System.currentTimeMillis(), new Date());
 
                 log.info(logInfo);
                 log.warn(logInfo);
+                sb.append(logInfo);
 
                 // Job last logs to detect where it got was stuck.
                 if (lastJob != null) {
                     final long threadId = Thread.currentThread().getId();
-                    log.info(String.format("Job: %s.%s, #%ss log: {{%s}}", lastJobName, lastJobID, threadId, lastJob.getLogger().dumpMessages()));
+                    final String extraTaskInfo = String.format("Job: %s.%s, #%ss log: {{%s}}",
+                            lastJobName, lastJobID, threadId, lastJob.getLogger().dumpMessages());
+
+                    log.info(extraTaskInfo);
+                    sb.append("\n\n");
+                    sb.append(extraTaskInfo);
+
                 } else {
                     log.info("Last job was null, cannot provide debug info");
+
+                }
+
+                // Administrator mail notification.
+                final UserServicePlugin plugin = plugRef.get();
+                if (plugin != null) {
+                    plugin.notifyAdminByMail("System deadlock",
+                            "TaskExecutor is experiencing an unpleasant situation - a deadlock." +
+                                    "Some task started and refuses to finish.\n\n " +
+                                    sb.toString());
                 }
             }
 
