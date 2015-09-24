@@ -774,8 +774,8 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
      * @param username
      */
     private void createDefaultPrivacyList(String username) {
-        PrivacyListManager privListManager = PrivacyListManager.getInstance();
-        PrivacyList list = privListManager.getDefaultPrivacyList(username);
+        final PrivacyListManager privListManager = PrivacyListManager.getInstance();
+        final PrivacyList list = privListManager.getDefaultPrivacyList(username);
         if (list != null && standardPLName.equals(list.getName())) {
             return;
         }
@@ -783,7 +783,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         // Create a new privacy list for the caller, store to the database
         // and updates a cache.
         log.info("About to create a privacy list for: " + username + "; tstamp: " + System.currentTimeMillis());
-        synchronized (username.intern()) {
+//        synchronized (username.intern()) {
             try {
                 PrivacyList nlist = privListManager.createPrivacyList(username, standardPLName, standardPrivacyListElement);
                 nlist.setDefaultList(true);
@@ -793,7 +793,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
             } catch (Exception e) {
                 log.error("Exception in setting a privacy list", e);
             }
-        }
+//        }
 
         log.info("Generated privacy list for: " + username + "; tstamp: " + System.currentTimeMillis());
     }
