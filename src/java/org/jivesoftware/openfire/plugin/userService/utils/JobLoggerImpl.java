@@ -48,8 +48,11 @@ public class JobLoggerImpl implements JobLogger {
     @Override
     public synchronized String dumpMessages() {
         final StringBuilder sb = new StringBuilder();
-        for(int i=0; i<numMessages && lastOffset >= 0; i++){
-            final int curPos = (lastOffset+i) % msgLimit;
+
+        // Start offset of the first valid message is: (((lastOffset - numMessages) % msgLimit) + 1) % msgLimit
+        int startOffset = MiscUtils.mod(MiscUtils.mod(lastOffset - numMessages, msgLimit) + 1, msgLimit);
+        for(int i=0; i<numMessages; i++){
+            final int curPos = (startOffset+i) % msgLimit;
             sb.append(messages.get(curPos));
             sb.append("\n");
         }
