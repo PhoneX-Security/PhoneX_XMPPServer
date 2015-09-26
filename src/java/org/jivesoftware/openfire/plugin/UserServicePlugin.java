@@ -778,7 +778,12 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
      */
     private void createDefaultPrivacyList(String username, final JobLogger jobLogger) {
         final PrivacyListManager privListManager = PrivacyListManager.getInstance();
+        log2ger(jobLogger, "csync", "Privacy list, manager obtained for %s", username);
+
+        // Following call synchronizes on username.intern(), uses listCache.
         final PrivacyList list = privListManager.getDefaultPrivacyList(username);
+        log2ger(jobLogger, "csync", "Privacy list, default list obtained for %s", username);
+
         if (list != null && standardPLName.equals(list.getName())) {
             log2ger(jobLogger, "csync", "Privacy list is in sync for %s", username);
             return;
