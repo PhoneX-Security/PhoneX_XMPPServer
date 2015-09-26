@@ -176,8 +176,8 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         }
 
         // Administrator notification.
-        notifyAdminByMail("System started",
-                String.format("Please note the PhoneX Openfire plugin was loaded " +
+        notifyAdminByMail("OpenFire: System started",
+                String.format("Please note the PhoneX Openfire plugin was loaded. Date: " +
                 "%s, millistamp: %d.", new Date(), System.currentTimeMillis()));
     }
 

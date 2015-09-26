@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
 import java.util.Date;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -79,7 +80,7 @@ public class TaskExecutor implements Runnable{
         // Add the job to the queue
         jobs.add(qJob);
 
-        // Detect long running jobs.
+        // Detect long running jobs / deadlocks.
         if (lastJobTimeStart.get() != 0 && lastJobTimeFinish.get() == 0){
             final long curTime = System.currentTimeMillis();
             final long runTime = curTime - lastJobTimeStart.get();
@@ -123,10 +124,20 @@ public class TaskExecutor implements Runnable{
 
                 }
 
+                // Thread dump:
+                sb.append("\n\nThread dump:\n");
+                sb.append(threadDump());
+                sb.append("\n\n");
+
+                // Advise user to do inspection on deadlocked system, if possible.
+                sb.append("If possible, try to obtain thread dump directly from the JVM, by calling\n");
+                sb.append("kill -QUIT <pid>\n");
+                sb.append("Or use jstack.");
+
                 // Administrator mail notification.
                 final UserServicePlugin plugin = plugRef.get();
                 if (plugin != null) {
-                    plugin.notifyAdminByMail("System deadlock",
+                    plugin.notifyAdminByMail("OpenFire: System deadlock",
                             "TaskExecutor is experiencing an unpleasant situation - a deadlock." +
                                     "Some task started and refuses to finish.\n\n " +
                                     sb.toString());
@@ -191,6 +202,34 @@ public class TaskExecutor implements Runnable{
      */
     public void submit(Job job){
         jobs.add(job);
+    }
+
+    /**
+     * Generates thread dump, used in deadlock detection.
+     * @return
+     */
+    protected String threadDump(){
+        final StringBuilder sb = new StringBuilder();
+        try {
+            final Map<Thread, StackTraceElement[]> map = Thread.getAllStackTraces();
+            for (Map.Entry<Thread, StackTraceElement[]> threadEntry : map.entrySet()) {
+                sb.append("Thread:")
+                        .append(threadEntry.getKey().getName())
+                        .append(":")
+                        .append(threadEntry.getKey().getState())
+                        .append("\n");
+
+                for (StackTraceElement element : threadEntry.getValue()) {
+                    sb.append("--> ")
+                            .append(element)
+                            .append("\n");
+                }
+            }
+        } catch (Throwable t){
+            log.error("Exception when generating thread dump", t);
+        }
+
+        return sb.toString();
     }
 
     /**
