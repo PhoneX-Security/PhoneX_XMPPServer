@@ -780,19 +780,30 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         final PrivacyListManager privListManager = PrivacyListManager.getInstance();
         log2ger(jobLogger, "csync", "Privacy list, manager obtained for %s", username);
 
-        // Following call synchronizes on username.intern(), uses listCache.
-        final PrivacyList list = privListManager.getDefaultPrivacyList(username);
-        log2ger(jobLogger, "csync", "Privacy list, default list obtained for %s", username);
+        // As a workaround for a deadlock between a client thread, which locks in the order
+        // getRoster (lock: (username + "ro").intern(), GroupManager.getSharedGroups (lock: username.intern())
+        //
+        // And task privacy list code, which locks:
+        // getDefaultPrivacyList (lock: username.intern()), getRoster (lock: (username + "ro").intern()
+        // So here we kame sure our executor thread holds roster lock first.
+        // This bug is reported here: https://community.igniterealtime.org/thread/57146
+        synchronized ((username + " ro").intern()) {
+            log2ger(jobLogger, "csync", "Privacy list, lock for [%s] obtained", username + " ro");
 
-        if (list != null && standardPLName.equals(list.getName())) {
-            log2ger(jobLogger, "csync", "Privacy list is in sync for %s", username);
-            return;
-        }
+            // Following call synchronizes on username.intern(), then on  (username + "ro").
+            // Uses listCache.
+            final PrivacyList list = privListManager.getDefaultPrivacyList(username);
+            log2ger(jobLogger, "csync", "Privacy list, default list obtained for %s", username);
 
-        // Create a new privacy list for the caller, store to the database
-        // and updates a cache.
-        log2ger(jobLogger, "csync", "About to create a privacy list for %s", username);
-        log.info("About to create a privacy list for: " + username + "; tstamp: " + System.currentTimeMillis());
+            if (list != null && standardPLName.equals(list.getName())) {
+                log2ger(jobLogger, "csync", "Privacy list is in sync for %s", username);
+                return;
+            }
+
+            // Create a new privacy list for the caller, store to the database
+            // and updates a cache.
+            log2ger(jobLogger, "csync", "About to create a privacy list for %s", username);
+            log.info("About to create a privacy list for: " + username + "; tstamp: " + System.currentTimeMillis());
 
 //        synchronized (username.intern()) {
             try {
@@ -806,8 +817,9 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
             }
 //        }
 
-        log2ger(jobLogger, "csync", "Generated privacy list for: %s", username);
-        log.info("Generated privacy list for: " + username + "; tstamp: " + System.currentTimeMillis());
+            log2ger(jobLogger, "csync", "Generated privacy list for: %s", username);
+            log.info("Generated privacy list for: " + username + "; tstamp: " + System.currentTimeMillis());
+        }
     }
 
     /**
