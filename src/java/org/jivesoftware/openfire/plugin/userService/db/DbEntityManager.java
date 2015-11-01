@@ -795,9 +795,15 @@ public class DbEntityManager {
             // Message can be identified also by time. For multi messages it is handy to delete all older message than
             // the most recent one delivered as the top-message in the push notification.
             final Long timestamp = msg.getTimestamp();
-            final String action = msg.getAction();
+            String action = msg.getAction();
             if (timestamp == null || timestamp < 100 || action == null || action.isEmpty()){
+                log.warn(String.format("Illegal ack message: %s", msg));
                 continue;
+            }
+
+            // Messages action need to be translated to push request messages action.
+            if (msg.getMsgRef() != null){
+                action = msg.getMsgRef().getAction();
             }
 
             ActionTimePair pair = new ActionTimePair();
