@@ -386,9 +386,9 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     }
 
                     // Check roster permissions.
-                    if (!usrPlugin.canProbePresence(fromUser, toUser.toBareJID())){
+                    if (!usrPlugin.canProbePresence(fromUser, toUser.getNode())){
                         log.warn(String.format("User %s cannot send push notification to %s, blocked by roster permission model",
-                                fromUser, toUser));
+                                fromUser, toUser.toBareJID()));
                         continue;
                     }
 
@@ -510,6 +510,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
 
         // If APN service is down, nothing to do.
         if (apnSvcDevel == null || apnSvcProd == null){
+            log.warn("Could not use Apple push, service is null");
             return;
         }
 

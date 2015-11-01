@@ -101,8 +101,9 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      * @param obj
      */
     public void handlePushRequestFromQueue(JSONObject obj) {
+        String userName = "";
         try {
-            final String userName = obj.getString("user");
+            userName = obj.getString("user");
             final JSONArray msgs = obj.getJSONArray("msgs");
             final int msgsCnt = msgs.length();
             for(int i=0; i < msgsCnt; i++){
@@ -159,7 +160,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
                 }
             }
         } catch(Exception e){
-            log.error("Exception in push request from queue handling", e);
+            log.error("Exception in push request from queue handling, user: " + userName, e);
         }
     }
 

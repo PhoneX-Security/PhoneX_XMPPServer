@@ -33,7 +33,7 @@ public class DbEntityManager {
     private static final String SQL_DELETE_PUSH_REQ_USR_ACTTIME_FMT="DELETE FROM ofPhxPlatformMessages WHERE ofForUser=? AND %s";
     private static final String SQL_DELETE_PUSH_REQ_USR_ACTION_TIME="DELETE FROM ofPhxPlatformMessages WHERE ofForUser=? AND ofMsgAction=? AND ofMsgTime<?";
     private static final String SQL_FETCH_TOKENS_USERS_FMT="SELECT * FROM ofPushTokenApple WHERE ofUser IN (%s)";
-    private static final String SQL_FETCH_PUSH_REQ_USERS_FMT="SELECT * FROM ofPhxPlatformMessages WHERE ofMsgExpire > NOW() AND ofForUser IN (%s)";
+    private static final String SQL_FETCH_PUSH_REQ_USERS_FMT="SELECT * FROM ofPhxPlatformMessages WHERE (ofMsgExpire > NOW() OR ofMsgExpire IS NULL) AND ofForUser IN (%s)";
     private static final String SQL_DELETE_TOKENS_FMT="DELETE FROM ofPushTokenApple WHERE ofDeviceToken IN (%s)";
     private static final String SQL_CLEAN_PUSH_CREATE_TEMP_TABLE_FMT ="CREATE TEMPORARY TABLE IF NOT EXISTS cleanPlatformMessages AS (\n" +
             "SELECT tt.ofMsgId\n" +
@@ -694,7 +694,7 @@ public class DbEntityManager {
         PreparedStatement pstmtDelete = null;
 
         // Insert query, full row.
-        final String q  = "INSERT INTO ofPhxPlatformMessages VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        final String q  = "INSERT INTO ofPhxPlatformMessages VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         // Delete msg by its key
         final String delKey = "DELETE FROM ofPhxPlatformMessages WHERE ofFromUser=? AND ofFromResource=? AND ofMsgKey=?";
         // Delete msg by its action
