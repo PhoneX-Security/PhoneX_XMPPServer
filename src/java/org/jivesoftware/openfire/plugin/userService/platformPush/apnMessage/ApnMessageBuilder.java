@@ -1,9 +1,7 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage;
 
 import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
-import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.NewActiveCallPush;
-import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.NewMessagePush;
-import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.NewMissedCallPush;
+import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.*;
 
 /**
  * Created by dusanklinec on 17.07.15.
@@ -23,14 +21,25 @@ public class ApnMessageBuilder {
         ApnMessageBase ab;
         if (NewActiveCallPush.ACTION.equals(action)){
             ab = new NewCallMsg();
+
         } else if (NewMissedCallPush.ACTION.equals(action)){
             ab = new NewMissedCallMsg();
+
         } else if (NewMessagePush.ACTION.equals(action)){
             ab = new NewMessageMsg();
+
+        } else if (NewAttentionPush.ACTION.equals(action)){
+            ab = new NewAttentionMsg();
+
+        } else if (NewEventPush.ACTION.equals(action)){
+            ab = new NewEventMsg();
+
         } else if (allowGeneric){
             ab = new ApnMessageBase();
+
         } else {
             return null;
+
         }
 
         ab.setAction(ppush.getAction());

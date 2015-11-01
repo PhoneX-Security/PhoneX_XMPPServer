@@ -28,6 +28,7 @@ public class DbEntityManager {
     private static final String SQL_DELETE_MESSAGES_USR="DELETE FROM ofPushMessages WHERE msgAction=? AND forUser=?";
     private static final String SQL_EXPIRE_PUSH_REQ="DELETE FROM ofPhxPlatformMessages WHERE ofMsgExpire IS NOT NULL AND ofMsgExpire<=NOW()";
     private static final String SQL_EXPIRE_PUSH_REQ_USR="DELETE FROM ofPhxPlatformMessages WHERE ofMsgExpire IS NOT NULL AND ofMsgExpire<=NOW() AND ofForUser=?";
+    private static final String SQL_DELETE_PUSH_REQ_ID_FMT="DELETE FROM ofPhxPlatformMessages WHERE ofMsgId IN(%s)";
     private static final String SQL_DELETE_PUSH_REQ_USR_KEY_FMT="DELETE FROM ofPhxPlatformMessages WHERE ofForUser=? AND ofMsgKey IS NOT NULL AND ofMsgKey IN(%s)";
     private static final String SQL_DELETE_PUSH_REQ_USR_ACTTIME_FMT="DELETE FROM ofPhxPlatformMessages WHERE ofForUser=? AND %s";
     private static final String SQL_DELETE_PUSH_REQ_USR_ACTION_TIME="DELETE FROM ofPhxPlatformMessages WHERE ofForUser=? AND ofMsgAction=? AND ofMsgTime<?";
@@ -50,6 +51,25 @@ public class DbEntityManager {
             "          ORDER BY ts DESC\n" +
             "          LIMIT 1 OFFSET %d\n" +
             "        ))";
+
+    private static final String SQL_CLEAN_PUSH_CREATE_TEMP_TABLE_USER_ACTION_FMT ="CREATE TEMPORARY TABLE IF NOT EXISTS cleanPlatformMessages AS (\n" +
+            "SELECT tt.ofMsgId\n" +
+            "FROM \n" +
+            "      ( SELECT DISTINCT ofForUser, ofMsgAction             \n" +
+            "        FROM ofPhxPlatformMessages " +
+            "        WHERE ofForUser=? AND ofMsgAction=?                \n" +
+            "      ) AS du                          \n" +
+            "  JOIN\n" +
+            "      ofPhxPlatformMessages AS tt\n" +
+            "    ON  tt.ofForUser = du.ofForUser AND tt.ofMsgAction = du.ofMsgAction\n" +
+            "    AND tt.ofMsgTime <\n" +
+            "        ( SELECT ofMsgTime AS ts\n" +
+            "          FROM ofPhxPlatformMessages\n" +
+            "          WHERE ofForUser = du.ofForUser AND ofMsgAction=du.ofMsgAction\n" +
+            "          ORDER BY ts DESC\n" +
+            "          LIMIT 1 OFFSET %d\n" +
+            "        ))";
+
     private static final String SQL_CLEAN_PUSH_DELETE_BY_TEMP_TABLE = "DELETE FROM ofPhxPlatformMessages WHERE ofMsgId IN (SELECT ofMsgId FROM cleanPlatformMessages)";
 
     /**
@@ -674,7 +694,7 @@ public class DbEntityManager {
         PreparedStatement pstmtDelete = null;
 
         // Insert query, full row.
-        final String q  = "INSERT INTO ofPhxPlatformMessages VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        final String q  = "INSERT INTO ofPhxPlatformMessages VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         // Delete msg by its key
         final String delKey = "DELETE FROM ofPhxPlatformMessages WHERE ofFromUser=? AND ofFromResource=? AND ofMsgKey=?";
         // Delete msg by its action
@@ -721,9 +741,10 @@ public class DbEntityManager {
                 pstmt.setInt(9, req.getMessageType());
                 pstmt.setBoolean(10, true);
                 pstmt.setBoolean(11, req.isUnique());
-                pstmt.setString(12, null);
+                pstmt.setBoolean(12, req.requiresAck());
                 pstmt.setString(13, null);
                 pstmt.setString(14, null);
+                pstmt.setString(15, null);
                 pstmt.executeUpdate();
             }
 
@@ -963,6 +984,57 @@ public class DbEntityManager {
     }
 
     /**
+     * Deletes all messages not having wait_ack = 1.
+     * @param messages
+     * @return
+     */
+    public static int deleteNoAckWaitPushRequests(Collection<DbPlatformPush> messages){
+        if (messages == null || messages.isEmpty()){
+            return 0;
+        }
+
+        List<Long> idsToDelete = new ArrayList<Long>();
+        for(DbPlatformPush msg : messages){
+            if (msg.isAckWait()){
+                continue;
+            }
+
+            idsToDelete.add(msg.getId());
+        }
+
+        if (idsToDelete.isEmpty()){
+            return 0;
+        }
+
+
+        PreparedStatement pstmt = null;
+        final int cnt = idsToDelete.size();
+        final String query = String.format(SQL_DELETE_PUSH_REQ_ID_FMT, genPlaceholders(cnt));
+        Connection con = null;
+
+        try {
+            con = DbConnectionManager.getConnection();
+            pstmt = con.prepareStatement(query);
+
+            int ctr = 0;
+            for (Long id : idsToDelete) {
+                pstmt.setLong(++ctr, id);
+            }
+
+            return pstmt.executeUpdate();
+        }
+        catch (SQLException e) {
+            log.error(e.getMessage(), e);
+        }
+        finally {
+            DbConnectionManager.closeStatement(pstmt);
+            DbConnectionManager.closeConnection(con);
+        }
+
+        return 0;
+    }
+
+    /**
      * Keeps topN records for pairs (forUser, action) in the push request message database. Others are deleted.
      * @param topN
      * @return
@@ -977,6 +1049,43 @@ public class DbEntityManager {
 
             final String tempTableCreate = String.format(SQL_CLEAN_PUSH_CREATE_TEMP_TABLE_FMT, topN);
             stCreate = con.prepareStatement(tempTableCreate);
+            stCreate.execute();
+
+            stDelete = con.prepareStatement(SQL_CLEAN_PUSH_DELETE_BY_TEMP_TABLE);
+            affected += stDelete.executeUpdate();
+        }
+        catch (SQLException e) {
+            log.error(e.getMessage(), e);
+        }
+        finally {
+            DbConnectionManager.closeConnection(con);
+            DbConnectionManager.closeStatement(stCreate);
+            DbConnectionManager.closeStatement(stDelete);
+        }
+
+        return affected;
+    }
+
+    /**
+     * Keeps topN records for pairs (forUser, action) in the push request message database for particular user and action.
+     * Others are deleted.
+     *
+     * @param topN
+     * @return
+     */
+    public static int cleanDbPushRequestDb(int topN, JID user, String action){
+        int affected = 0;
+        Connection con = null;
+        PreparedStatement stCreate = null;
+        PreparedStatement stDelete = null;
+        try {
+            con = DbConnectionManager.getConnection();
+
+            final String tempTableCreate = String.format(SQL_CLEAN_PUSH_CREATE_TEMP_TABLE_USER_ACTION_FMT, topN);
+            stCreate = con.prepareStatement(tempTableCreate);
+            stCreate.setString(1, user.toBareJID());
+            stCreate.setString(2, action);
+
             stCreate.execute();
 
             stDelete = con.prepareStatement(SQL_CLEAN_PUSH_DELETE_BY_TEMP_TABLE);

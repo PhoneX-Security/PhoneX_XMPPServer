@@ -4,17 +4,19 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Push request sent by client to notify a destination user he has incoming call.
+ * Simple push notification message. Client is asking us to send a destination user simple new event message which
+ * does not require ACK.
  *
- * Created by dusanklinec on 14.07.15.
+ * Created by dusanklinec on 01.11.15.
  */
-public class NewActiveCallPush extends PushRequestMessage {
-    public static final String ACTION = "newCall";
+public class NewEventPush  extends PushRequestMessage {
+    public static final String ACTION = "newEvent";
 
-    public NewActiveCallPush() {
+    public NewEventPush() {
+        requiresAck = false;
     }
 
-    public NewActiveCallPush(JSONObject json) throws JSONException {
+    public NewEventPush(JSONObject json) throws JSONException {
         super(json);
     }
 
@@ -35,11 +37,11 @@ public class NewActiveCallPush extends PushRequestMessage {
 
     @Override
     public boolean requiresAck() {
-        return true;
+        return false;
     }
 
     @Override
     public String getAlertString() {
-        return "L_PHX_PUSH_NEW_CALL";
+        return "L_PHX_PUSH_NEW_EVENT";
     }
 }

@@ -6,11 +6,9 @@ import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessage;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessageBuilder;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.NewMissedCallMsg;
-import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.NewActiveCallPush;
-import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.NewMessagePush;
-import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.NewMissedCallPush;
-import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.PushRequestMessage;
+import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.*;
 import org.jivesoftware.openfire.plugin.userService.push.PushMessage;
+import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -35,6 +33,8 @@ public class ApnPushBuilder {
      *   1 .. new message.
      *   2 .. new missed call.
      *   4 .. new active call.
+     *   8 .. new event
+     *   16 . new attention
      */
     private static final String[] alertMap = {
             /* 0 */ null,
@@ -45,6 +45,15 @@ public class ApnPushBuilder {
             /* 5 */ "L_PHX_PUSH_ALERT_ACALL_MSG",
             /* 6 */ "L_PHX_PUSH_ALERT_ACALL_MCALL",
             /* 7 */ "L_PHX_PUSH_ALERT_ACALL_MCALL_MSG",
+            /* 8 */ "L_PHX_PUSH_ALERT_EVT",
+            /* 9 */ "L_PHX_PUSH_ALERT_MSG_EVT",
+            /*10 */ "L_PHX_PUSH_ALERT_MCALL_EVT",
+            /*11 */ "L_PHX_PUSH_ALERT_MCALL_MSG_EVT",
+            /*12 */ "L_PHX_PUSH_ALERT_EVT",
+            /*13 */ "L_PHX_PUSH_ALERT_EVT",
+            /*14 */ "L_PHX_PUSH_ALERT_EVT",
+            /*15 */ "L_PHX_PUSH_ALERT_EVT",
+            /*16 */ "L_PHX_PUSH_ALERT_ATT",
     };
 
     protected String user;
@@ -82,8 +91,10 @@ public class ApnPushBuilder {
             if (!actionMap.containsKey(action)){
                 lstToUse = new ArrayList<DbPlatformPush>();
                 actionMap.put(action, lstToUse);
+
             } else {
                 lstToUse = actionMap.get(action);
+
             }
 
             lstToUse.add(ppush);
@@ -112,6 +123,31 @@ public class ApnPushBuilder {
         }
     }
 
+    public void buildAlertString(){
+        boolean newMsg    = actionPush.containsKey(NewMissedCallPush.ACTION);
+        boolean newMissed = actionPush.containsKey(NewMessagePush.ACTION);
+        boolean newCall   = actionPush.containsKey(NewActiveCallPush.ACTION);
+        boolean newEvent  = actionPush.containsKey(NewEventPush.ACTION);
+        boolean newAttention = actionPush.containsKey(NewAttentionPush.ACTION);
+        int alertIdx = newMsg       ? 1 : 0;
+        alertIdx    |= newMissed    ? 1 << 1: 0;
+        alertIdx    |= newCall      ? 1 << 2: 0;
+        alertIdx    |= newEvent     ? 1 << 3: 0;
+        alertIdx    |= newAttention ? 1 << 4: 0;
+        if (alertIdx >= alertMap.length){
+            try {
+                alertString = alertMap[MiscUtils.lg2(alertIdx)];
+
+            } catch(Exception e){
+                log.error("Exception in alert string building", e);
+            }
+
+        } else {
+            alertString = alertMap[alertIdx];
+
+        }
+    }
+
     /**
      * Build apple push.
      */
@@ -120,13 +156,7 @@ public class ApnPushBuilder {
         preprocess();
 
         // Generate total alert name.
-        boolean newMsg    = actionPush.containsKey(NewMissedCallPush.ACTION);
-        boolean newMissed = actionPush.containsKey(NewMessagePush.ACTION);
-        boolean newCall   = actionPush.containsKey(NewActiveCallPush.ACTION);
-        int alertIdx = newMsg    ? 1 : 0;
-        alertIdx    |= newMissed ? 1 << 1: 0;
-        alertIdx    |= newCall   ? 1 << 2: 0;
-        alertString = alertMap[alertIdx];
+        buildAlertString();
 
         // Build custom JSON notification.
         JSONObject root = new JSONObject();

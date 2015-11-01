@@ -25,6 +25,7 @@ public class DbPlatformPush {
     public static final String FIELD_TYPE = "ofMsgType";
     public static final String FIELD_DURABLE = "ofIsDurable";
     public static final String FIELD_UNIQUE = "ofIsUnique";
+    public static final String FIELD_ACKWAIT = "ofAckWait";
     public static final String FIELD_AUX1 = "ofAux1";
     public static final String FIELD_AUX2 = "ofAux2";
     public static final String FIELD_AUX_DATA = "ofAuxData";
@@ -41,6 +42,7 @@ public class DbPlatformPush {
     protected int type=0;
     protected boolean durable;
     protected boolean unique;
+    protected boolean ackWait=true;
     protected String aux1;
     protected String aux2;
     protected String auxData;
@@ -75,6 +77,7 @@ public class DbPlatformPush {
         pp.setType(rs.getInt(FIELD_TYPE));
         pp.setDurable(rs.getBoolean(FIELD_DURABLE));
         pp.setUnique(rs.getBoolean(FIELD_UNIQUE));
+        pp.setAckWait(rs.getBoolean(FIELD_ACKWAIT));
 
         pp.setAux1(rs.getString(FIELD_AUX1));
         pp.setAux2(rs.getString(FIELD_AUX2));
@@ -201,5 +204,13 @@ public class DbPlatformPush {
 
     public void setAuxData(String auxData) {
         this.auxData = auxData;
+    }
+
+    public boolean isAckWait() {
+        return ackWait;
+    }
+
+    public void setAckWait(boolean ackWait) {
+        this.ackWait = ackWait;
     }
 }

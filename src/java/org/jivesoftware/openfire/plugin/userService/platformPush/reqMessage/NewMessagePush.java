@@ -4,6 +4,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
+ * Push request sent by client to notify a destination user he has a new message.
+ *
  * Created by dusanklinec on 14.07.15.
  */
 public class NewMessagePush extends PushRequestMessage {
@@ -29,6 +31,11 @@ public class NewMessagePush extends PushRequestMessage {
     @Override
     public int getUrgencyType() {
         return URGENCY_NEW_USER_EVENT;
+    }
+
+    @Override
+    public boolean requiresAck() {
+        return true;
     }
 
     @Override

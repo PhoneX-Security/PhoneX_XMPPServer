@@ -16,12 +16,16 @@ public interface ApnMessage {
 
     String getAction();
     ApnMessage setAction(String action);
+
     String getKey();
     ApnMessage setKey(String key);
+
     Long getExpiration();
     ApnMessage setExpiration(Long expiration);
+
     long getTimestamp();
     ApnMessage setTimestamp(long timestamp);
+
     int getBadge();
     ApnMessage setBadge(int badge);
 }

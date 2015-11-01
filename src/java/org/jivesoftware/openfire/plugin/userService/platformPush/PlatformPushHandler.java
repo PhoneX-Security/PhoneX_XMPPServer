@@ -23,8 +23,10 @@ import org.jivesoftware.openfire.plugin.userService.platformPush.iq.PushMessageR
 import org.jivesoftware.openfire.plugin.userService.platformPush.iq.PushTokenUpdateIq;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.PushRequest;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.PushRequestMessage;
+import org.jivesoftware.openfire.plugin.userService.push.events.*;
 import org.jivesoftware.openfire.plugin.userService.utils.LRUCache;
 import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -98,6 +100,8 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     .build();
 
             apnFeedbackWatcher.start();
+            log.info("APN service started");
+
         } catch(Exception e){
             apnSvcDevel = null;
             apnSvcProd = null;
@@ -248,6 +252,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         JSONObject json = null;
         try {
             json = getJsonFromIQ(packet);
+
         } catch (JSONException e) {
             log.warn("Error parsing JSON from the packet", e);
             return retPacket;
@@ -256,86 +261,13 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         PushParser parser = new PushParser();
         try {
             final PushRequest request = parser.processPushRequest(json, packet);
-            final String bareJidUser = request.getFromUser().toBareJID();
             if (request == null){
                 log.warn("Error in parsing push request");
                 return retPacket;
             }
 
-            // Store to the database in background thread.
-            plugin.submit("pushReqStore", new JobRunnable() {
-                @Override
-                public void run(UserServicePlugin plugin, Job job) {
-                    // Persist all messages. If call cancellation is received, do not store it, delete message instead.
-                    int affected = 0;
-                    final long curTime = System.currentTimeMillis();
-                    final Set<String> usersToNotify = new HashSet<String>();
-                    final List<PushRequestMessage> requests = request.getMessages();
-                    final JID fromUser = request.getFromUser();
-                    final UserServicePlugin usrPlugin = getPlugin();
-                    final ClientStateService cStateSvc = usrPlugin.getCstateSvc();
-
-                    for (PushRequestMessage curReq : requests) {
-                        final JID toUser = curReq.getToUser();
-
-                        // Do we know given action of the message? Protect from flooding with rubbish action names.
-                        // We do not support universal, forward compatible action names as APN is not that straighforward mechanism
-                        // as simple XMPP push notifications.
-                        final String action = curReq.getAction();
-                        final PushRequestMessage msgByAction = PushParser.getMessageByAction(action, false);
-                        if (msgByAction == null){
-                            log.warn(String.format("Ignoring push message request with unknown action name %s", action));
-                            continue;
-                        }
-
-                        // Check roster permissions.
-                        if (!usrPlugin.canProbePresence(fromUser, toUser.toBareJID())){
-                            log.warn(String.format("User %s cannot send push notification to %s, blocked by roster permission model",
-                                    fromUser, toUser));
-                            continue;
-                        }
-
-                        // If last activity was recently active, do not trigger push, as the client is working with the app.
-                        // TODO: fix when multiuser support is added.
-                        final ActivityRecord toUserLastActivity = cStateSvc.getLastActivity(toUser.asBareJID());
-                        if (toUserLastActivity != null && !toUserLastActivity.isSentinel()){
-                            final long lastActiveMilli = toUserLastActivity.getLastActiveMilli();
-                            if (toUserLastActivity.getLastState() == ActivityRecord.STATE_ACTIVE && (curTime - lastActiveMilli) > 1000*60*5){
-                                log.info(String.format("Push from %s to %s, action %s is discarded, destination is active",
-                                        fromUser, toUser, action));
-                                continue;
-                            }
-                        }
-
-                        // Check cache if this op was not performed recently.
-                        final boolean doCache = curReq.getKey() != null && !curReq.getKey().isEmpty();
-                        final String cacheKey = doCache ? "c:" + curReq.isCancel() + ";key:" + curReq.getKey() + ";usr:" + bareJidUser : null;
-                        if (doCache && messageKeyCache.containsKey(cacheKey)) {
-                            log.debug(String.format("Duplicate operation detected, key: %s", cacheKey));
-                        }
-
-                        // Persisting to the database + protection against flooding / errors. Keeps last 100 records
-                        // for user-action pairs.
-                        boolean success = DbEntityManager.persistNewPushRequest(request, curReq);
-                        if (success) {
-                            affected += 1;
-                            usersToNotify.add(toUser.toBareJID());
-
-                            // Reflect change to the database in the push message database cleaning cache.
-                            handleNewPushRequestAdded(toUser, request, curReq);
-                        }
-
-                        if (success && doCache) {
-                            messageKeyCache.put(cacheKey, Integer.MIN_VALUE);
-                        }
-                    }
-
-                    // Trigger sending all unacknowledged push messages to the client via APN. this job loads all push messages to send.
-                    if (!usersToNotify.isEmpty()) {
-                        triggerUserPushRecheck(usersToNotify, null);
-                    }
-                }
-            });
+            // Process new push request message, add to queue and invoke sending.
+            onNewPushReq(request);
 
         } catch(Exception e){
             log.warn("Error in parsing request body", e);
@@ -412,6 +344,97 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         }
 
         return retPacket;
+    }
+
+    /**
+     * Handling new push requests.
+     * @param request
+     * @return
+     */
+    public boolean onNewPushReq(final PushRequest request){
+        if (request == null){
+            log.warn("Error in parsing push request");
+            return false;
+        }
+
+        final String bareJidUser = request.getFromUser().toBareJID();
+
+        // Store to the database in background thread.
+        plugin.submit("pushReqStore", new JobRunnable() {
+            @Override
+            public void run(UserServicePlugin plugin, Job job) {
+                // Persist all messages. If call cancellation is received, do not store it, delete message instead.
+                int affected = 0;
+                final long curTime = System.currentTimeMillis();
+                final Set<String> usersToNotify = new HashSet<String>();
+                final List<PushRequestMessage> requests = request.getMessages();
+                final JID fromUser = request.getFromUser();
+                final UserServicePlugin usrPlugin = getPlugin();
+                final ClientStateService cStateSvc = usrPlugin.getCstateSvc();
+
+                for (PushRequestMessage curReq : requests) {
+                    final JID toUser = curReq.getToUser();
+
+                    // Do we know given action of the message? Protect from flooding with rubbish action names.
+                    // We do not support universal, forward compatible action names as APN is not that straighforward mechanism
+                    // as simple XMPP push notifications.
+                    final String action = curReq.getAction();
+                    final PushRequestMessage msgByAction = PushParser.getMessageByAction(action, false);
+                    if (msgByAction == null){
+                        log.warn(String.format("Ignoring push message request with unknown action name %s", action));
+                        continue;
+                    }
+
+                    // Check roster permissions.
+                    if (!usrPlugin.canProbePresence(fromUser, toUser.toBareJID())){
+                        log.warn(String.format("User %s cannot send push notification to %s, blocked by roster permission model",
+                                fromUser, toUser));
+                        continue;
+                    }
+
+                    // If last activity was recently active, do not trigger push, as the client is working with the app.
+                    // TODO: fix when multiuser support is added.
+                    final ActivityRecord toUserLastActivity = cStateSvc.getLastActivity(toUser.asBareJID());
+                    if (toUserLastActivity != null && !toUserLastActivity.isSentinel()){
+                        final long lastActiveMilli = toUserLastActivity.getLastActiveMilli();
+                        if (toUserLastActivity.getLastState() == ActivityRecord.STATE_ACTIVE && (curTime - lastActiveMilli) > 1000*60*5){
+                            log.info(String.format("Push from %s to %s, action %s is discarded, destination is active",
+                                    fromUser, toUser, action));
+                            continue;
+                        }
+                    }
+
+                    // Check cache if this op was not performed recently.
+                    final boolean doCache = curReq.getKey() != null && !curReq.getKey().isEmpty();
+                    final String cacheKey = doCache ? "c:" + curReq.isCancel() + ";key:" + curReq.getKey() + ";usr:" + bareJidUser : null;
+                    if (doCache && messageKeyCache.containsKey(cacheKey)) {
+                        log.debug(String.format("Duplicate operation detected, key: %s", cacheKey));
+                    }
+
+                    // Persisting to the database + protection against flooding / errors. Keeps last 100 records
+                    // for user-action pairs.
+                    boolean success = DbEntityManager.persistNewPushRequest(request, curReq);
+                    if (success) {
+                        affected += 1;
+                        usersToNotify.add(toUser.toBareJID());
+
+                        // Reflect change to the database in the push message database cleaning cache.
+                        handleNewPushRequestAdded(toUser, request, curReq);
+                    }
+
+                    if (success && doCache) {
+                        messageKeyCache.put(cacheKey, Integer.MIN_VALUE);
+                    }
+                }
+
+                // Trigger sending all unacknowledged push messages to the client via APN. this job loads all push messages to send.
+                if (!usersToNotify.isEmpty()) {
+                    triggerUserPushRecheck(usersToNotify, null);
+                }
+            }
+        });
+
+        return true;
     }
 
     /**
@@ -496,8 +519,10 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             if (!usrRequests.containsKey(user)){
                 lstToUse = new ArrayList<DbPlatformPush>();
                 usrRequests.put(user, lstToUse);
+
             } else {
                 lstToUse = usrRequests.get(user);
+
             }
 
             lstToUse.add(ppush);
@@ -534,11 +559,18 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     if (token.getDebug()){
                         log.info(String.format("Broadcasting devel push message, to: %s, payload: %s", token.getUser(), payload));
                         apnSvcDevel.push(notification);
+
                     } else {
                         log.info(String.format("Broadcasting production push message, to: %s, payload: %s", token.getUser(), payload));
                         apnSvcProd.push(notification);
+
                     }
                 }
+
+                // Delete non-ack messages from the database.
+                // iterate list, remove those not having wait ack set.
+                final int affectedNonAck = DbEntityManager.deleteNoAckWaitPushRequests(list);
+                log.info(String.format("Sent finished, non-ack deleted: %d", affectedNonAck));
 
             } catch (JSONException e) {
                 log.error("Exception in generating APN", e);
@@ -704,9 +736,21 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         }
 
         final PushMsgCacheCleanRec rec = eldest.getValue();
+        if (rec == null){
+            return;
+        }
 
-        // Clean cache on eviction entry if recordsAhead > 0.
-        clearPushRequestDb(rec);
+        // On eviction cleaning SQL is needed to be called, because we may loose a lot of
+        // records, e.g., in case recordsAhead == 1, all older records get deleted, only 1 record remains, not 100.
+        plugin.submit("evictClean", new JobRunnable() {
+            @Override
+            public void run(UserServicePlugin plugin, Job job) {
+                // Persist all messages. If call cancellation is received, do not store it, delete message instead.
+                final JID user = new JID(rec.getUser());
+                final int affected = DbEntityManager.cleanDbPushRequestDb(MAX_REC_PER_USER_ACTION, user, rec.getAction());
+                log.info(String.format("Eviction cleaning, affected rows: %d", affected));
+            }
+        });
     }
 
     /**
@@ -726,5 +770,41 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             }
         });
         cleanThread.start();
+    }
+
+    /**
+     * Entry point for new incoming push message sent to XMPP queue.
+     * Accepts push request messages, from the queue.
+     *
+     * {"action"    :"pushReq",
+     *  "user"      :"test1@phone-x.net",
+     *  "pushreq"   :[
+     *    {"push":"newEvent",       "target": "test-internal3@phone-x.net"},
+     *    {"push":"newAttention",   "target": "test-internal3@phone-x.net"},
+     *    {"push":"newMessage",     "target": "test-internal3@phone-x.net"},
+     *    {"push":"newMissedCall",  "target": "test-internal3@phone-x.net"},
+     *    {"push":"newCall",        "target": "test-internal3@phone-x.net", "key":"af45bed", "expire":180000,}
+     *  ]
+     *  }
+     *
+     * @param obj
+     */
+    public void handlePushRequestFromQueue(JSONObject obj) {
+        try {
+            final String fromUser = obj.getString("user");
+            PushParser parser = new PushParser();
+
+            final PushRequest request = parser.processPushRequest(obj, new JID(fromUser));
+            if (request == null){
+                log.warn("Error in parsing push request");
+                return;
+            }
+
+            // Process new push request message, add to queue and invoke sending.
+            onNewPushReq(request);
+
+        } catch(Exception e){
+            log.error("Exception in push request from queue handling", e);
+        }
     }
 }

@@ -5,6 +5,9 @@ import org.json.JSONObject;
 import org.xmpp.packet.JID;
 
 /**
+ * Generic push request message sent by client. Client wishes to notify a destination user about particular event
+ * (e.g., new message, missed call, ...)
+ *
  * {"pushreq":[
  *  {"push":"newMessage", "target": "test-internal3@phone-x.net"},
  *  {"push":"newMissedCall", "target": "test-internal3@phone-x.net"},
@@ -20,6 +23,7 @@ public class PushRequestMessage {
     public static final String FIELD_EXPIRE = "expire";
     public static final String FIELD_TARGET = "target";
     public static final String FIELD_CANCEL = "cancel";
+    public static final String FIELD_WAITACK = "waitack";
 
     public static final int URGENCY_MIN = 0; // MIN bound.
     public static final int URGENCY_BACKGROUND = 0; // certificate check and such.
@@ -71,6 +75,12 @@ public class PushRequestMessage {
     protected int urgencyType = URGENCY_MIN;
 
     /**
+     * If true message is not deleted until ACK is received or expires.
+     * If set to false, message is deleted after sending.
+     */
+    protected boolean requiresAck = true;
+
+    /**
      * Database related message id.
      */
     protected Long messageId;
@@ -114,6 +124,10 @@ public class PushRequestMessage {
         if (json.has(FIELD_CANCEL)){
             cancel = json.getBoolean(FIELD_CANCEL);
         }
+
+        if (json.has(FIELD_WAITACK)){
+            requiresAck = json.getBoolean(FIELD_WAITACK);
+        }
     }
 
     @Override
@@ -149,6 +163,18 @@ public class PushRequestMessage {
         result = 31 * result + (key != null ? key.hashCode() : 0);
         result = 31 * result + (toUser != null ? toUser.hashCode() : 0);
         return result;
+    }
+
+    /**
+     * Returns true if given message requires ACK from the client.
+     * @return
+     */
+    public boolean requiresAck(){
+        return requiresAck;
+    }
+
+    public void setRequiresAck(boolean requiresAck) {
+        this.requiresAck = requiresAck;
     }
 
     /**

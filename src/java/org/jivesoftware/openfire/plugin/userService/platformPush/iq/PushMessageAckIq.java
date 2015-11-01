@@ -8,7 +8,7 @@ import org.xmpp.packet.IQ;
 
 /**
  * Acknowledgements for platform push messages so they are not sent multiple times by the platform
- * push service to the device.
+ * push service to the device. Sent by client.
  *
  * Created by dusanklinec on 03.07.15.
  */

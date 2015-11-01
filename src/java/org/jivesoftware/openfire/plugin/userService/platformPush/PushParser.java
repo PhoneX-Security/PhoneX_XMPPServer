@@ -9,6 +9,7 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.IQ;
+import org.xmpp.packet.JID;
 
 /**
  * Simple parser for JSON encoded push message requests for APN.
@@ -30,12 +31,22 @@ public class PushParser {
         PushRequestMessage pm = null;
         if (NewMessagePush.ACTION.equals(action)){
             pm = new NewMessagePush();
+
         } else if (NewMissedCallPush.ACTION.equals(action)){
             pm = new NewMissedCallPush();
+
         } else if (NewActiveCallPush.ACTION.equals(action)){
             pm = new NewActiveCallPush();
+
+        }  else if (NewAttentionPush.ACTION.equals(action)){
+            pm = new NewAttentionPush();
+
+        }  else if (NewEventPush.ACTION.equals(action)){
+            pm = new NewEventPush();
+
         } else if (generic) {
             pm = new PushRequestMessage();
+
         }
 
         return pm;
@@ -47,17 +58,30 @@ public class PushParser {
      * @return
      */
     public PushRequest processPushRequest(JSONObject json, IQ packet){
-        if (json == null || packet == null){
+        if (packet == null){
+            return null;
+        }
+
+        return processPushRequest(json, packet.getFrom());
+    }
+
+    /**
+     * Process JSON push message request.
+     * @param json
+     * @return
+     */
+    public PushRequest processPushRequest(JSONObject json, JID fromUser){
+        if (json == null || fromUser == null){
             return null;
         }
 
         // Parse request body.
         try {
             PushRequest preq = new PushRequest();
-            preq.setFromUser(packet.getFrom());
+            preq.setFromUser(fromUser);
             preq.setTstamp(System.currentTimeMillis());
 
-            JSONArray reqs = json.getJSONArray("pushreq");
+            final JSONArray reqs = json.getJSONArray("pushreq");
             final int numReq = reqs.length();
             for(int i=0; i<numReq; i++){
                 JSONObject curReq = reqs.getJSONObject(i);

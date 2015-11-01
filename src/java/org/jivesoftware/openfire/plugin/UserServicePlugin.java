@@ -1211,6 +1211,10 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
             // Handle push notification for XMPP destination.
             if ("push".equalsIgnoreCase(action)) {
                 pushSvc.handlePushRequestFromQueue(obj);
+
+            } else if ("pushReq".equalsIgnoreCase(action)){
+                pPushSvc.handlePushRequestFromQueue(obj);
+
             } else {
                 log.info("Unrecognized action: " + action);
             }

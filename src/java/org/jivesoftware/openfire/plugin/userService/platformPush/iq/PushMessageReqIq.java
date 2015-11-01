@@ -7,8 +7,7 @@ import org.json.JSONObject;
 import org.xmpp.packet.IQ;
 
 /**
- * Acknowledgements for platform push messages so they are not sent multiple times by the platform
- * push service to the device.
+ * Push request message sent by client. Client wants a new platform push to be sent to a given user (e.g., on sending a message)
  *
  * Created by dusanklinec on 03.07.15.
  */
