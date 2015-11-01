@@ -12,9 +12,9 @@ import org.xmpp.packet.JID;
  * Created by dusanklinec on 14.07.15.
  */
 public class PushAckMessage {
-    public static final String FIELD_ACTION = "push";
-    public static final String FIELD_KEY = "key";
-    public static final String FIELD_TIME_STAMP = "tstamp";
+    public static final String FIELD_ACTION = "p";
+    public static final String FIELD_KEY = "k";
+    public static final String FIELD_TIME_STAMP = "t";
 
     protected String action;
 

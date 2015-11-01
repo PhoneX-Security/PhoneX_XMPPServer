@@ -2,6 +2,7 @@ package org.jivesoftware.openfire.plugin.userService.platformPush;
 
 import org.jivesoftware.openfire.plugin.userService.platformPush.ackMessage.PushAck;
 import org.jivesoftware.openfire.plugin.userService.platformPush.ackMessage.PushAckMessage;
+import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.*;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.*;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -50,6 +51,47 @@ public class PushParser {
         }
 
         return pm;
+    }
+
+    /**
+     * Creates a new instance of the message by its APN action.
+     * @param action
+     * @param generic
+     * @return
+     */
+    public static PushRequestMessage getMessageByApnAction(String action, boolean generic){
+        PushRequestMessage pm = null;
+        if (NewMessageMsg.ACTION.equals(action)){
+            pm = new NewMessagePush();
+
+        } else if (NewCallMsg.ACTION.equals(action)){
+            pm = new NewActiveCallPush();
+
+        }  else if (NewMissedCallMsg.ACTION.equals(action)){
+            pm = new NewMissedCallPush();
+
+        } else if (NewAttentionMsg.ACTION.equals(action)){
+            pm = new NewAttentionPush();
+
+        }  else if (NewEventMsg.ACTION.equals(action)){
+            pm = new NewEventPush();
+
+        } else if (generic) {
+            pm = new PushRequestMessage();
+
+        }
+
+        return pm;
+    }
+
+    /**
+     * APN action parsing from json object
+     * @param json
+     * @return
+     * @throws JSONException
+     */
+    public static String parseApnAction(JSONObject json) throws JSONException {
+        return json.has(PushAckMessage.FIELD_ACTION) ? json.getString(PushAckMessage.FIELD_ACTION) : null;
     }
 
     /**
@@ -135,12 +177,13 @@ public class PushParser {
             for(int i=0; i<numReq; i++){
                 JSONObject curReq = reqs.getJSONObject(i);
 
-                final String action = PushRequestMessage.parseAction(curReq);
+                final String action = parseApnAction(curReq);
                 if (action == null || action.isEmpty()){
+                    log.warn(String.format("Message action not recognized %s", curReq));
                     continue;
                 }
 
-                PushRequestMessage pm = getMessageByAction(action, false);
+                PushRequestMessage pm = getMessageByApnAction(action, false);
                 if (pm == null) {
                     log.warn(String.format("Unrecognized push message: %s", action));
                     continue;

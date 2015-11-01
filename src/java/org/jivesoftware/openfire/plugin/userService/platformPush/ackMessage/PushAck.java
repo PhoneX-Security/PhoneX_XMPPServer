@@ -41,6 +41,10 @@ public class PushAck {
     }
 
     public List<PushAckMessage> getMessages() {
+        if (messages == null){
+            messages = new ArrayList<PushAckMessage>();
+        }
+
         return messages;
     }
 

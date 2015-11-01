@@ -7,6 +7,7 @@ import org.jivesoftware.openfire.plugin.userService.platformPush.ackMessage.Push
 import org.jivesoftware.openfire.plugin.userService.platformPush.ackMessage.PushAckMessage;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.PushRequest;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.PushRequestMessage;
+import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.JID;

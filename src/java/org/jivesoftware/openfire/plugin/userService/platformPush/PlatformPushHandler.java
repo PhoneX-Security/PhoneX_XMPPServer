@@ -193,8 +193,9 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         JSONObject json = null;
         try {
             json = getJsonFromIQ(packet);
+
         } catch (JSONException e) {
-            log.warn("Error parsing JSON from the packet");
+            log.warn("Error parsing JSON from the packet", e);
             return retPacket;
         }
 
@@ -209,6 +210,9 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                 log.warn("Error in parsing push request");
                 return retPacket;
             }
+
+            // TODO:[low] change ret packet so client has information which messages were received.
+            // ...
 
             // Store to the database in background thread.
             plugin.submit("pushAckStore", new JobRunnable() {
