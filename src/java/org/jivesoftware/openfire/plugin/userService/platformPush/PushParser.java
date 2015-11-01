@@ -80,6 +80,9 @@ public class PushParser {
             PushRequest preq = new PushRequest();
             preq.setFromUser(fromUser);
             preq.setTstamp(System.currentTimeMillis());
+            if (!json.has("pushreq")){
+                return preq;
+            }
 
             final JSONArray reqs = json.getJSONArray("pushreq");
             final int numReq = reqs.length();

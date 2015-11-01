@@ -1218,6 +1218,9 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
             } else if ("pushRaw".equalsIgnoreCase(action)){
                 pPushSvc.handlePushRawRequestFromQueue(obj);
 
+            } else if ("pushTrigger".equalsIgnoreCase(action)){
+                pPushSvc.handlePushTriggerRequestFromQueue(obj);
+
             } else {
                 log.info("Unrecognized action: " + action);
             }

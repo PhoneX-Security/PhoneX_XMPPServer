@@ -872,4 +872,23 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             log.error("Exception in push request from queue handling", e);
         }
     }
+
+    /**
+     * Triggers sending a DB push messages to the given user.
+     * {"action"    :"pushTrigger",
+     *  "user"      :"test1@phone-x.net"
+     *  }
+     *
+     * @param obj
+     */
+    public void handlePushTriggerRequestFromQueue(JSONObject obj) {
+        try {
+            final String toUser = obj.getString("user");
+            log.info(String.format("Starting trigger push job for user %s", toUser));
+            triggerUserPushRecheck(Collections.singletonList(toUser), null);
+
+        } catch(Exception e){
+            log.error("Exception in push request from queue handling", e);
+        }
+    }
 }

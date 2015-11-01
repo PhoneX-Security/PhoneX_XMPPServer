@@ -51,6 +51,10 @@ public class PushRequest {
     }
 
     public List<PushRequestMessage> getMessages() {
+        if (messages == null){
+            messages = new ArrayList<PushRequestMessage>();
+        }
+
         return messages;
     }
 
