@@ -141,9 +141,12 @@ public class ClientStateService extends IQHandler implements ServerFeaturesProvi
                 localSession.setSessionData(INACTIVE_KEY, !active);
                 log.info(String.format("User %s set activity flag to %s", from, active));
 
-                // Push all current presence updates to the user.
                 if (active){
+                    // Push all current presence updates to the user.
                     plugin.getPushSvc().sendPresenceInfoInTaskExecutor(from);
+
+                    // Push all remote notifications so they are accepted by the application.
+                    plugin.getpPushSvc().triggerUserPushRecheck(Collections.singletonList(from.toBareJID()));
                 }
 
             } else {

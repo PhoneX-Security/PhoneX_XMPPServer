@@ -402,17 +402,17 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                         continue;
                     }
 
-                    // If last activity was recently active, do not trigger push, as the client is working with the app.
-                    // TODO: fix when multiuser support is added.
-                    final ActivityRecord toUserLastActivity = cStateSvc.getLastActivity(toUser.asBareJID());
-                    if (toUserLastActivity != null && !toUserLastActivity.isSentinel()){
-                        final long lastActiveMilli = toUserLastActivity.getLastActiveMilli();
-                        if (toUserLastActivity.getLastState() == ActivityRecord.STATE_ACTIVE && (curTime - lastActiveMilli) > 1000*60*5){
-                            log.info(String.format("Push from %s to %s, action %s is discarded, destination is active",
-                                    fromUser, toUser, action));
-                            continue;
-                        }
-                    }
+//                    // If last activity was recently active, do not trigger push, as the client is working with the app.
+//                    // TODO: fix when multiuser support is added.
+//                    final ActivityRecord toUserLastActivity = cStateSvc.getLastActivity(toUser.asBareJID());
+//                    if (toUserLastActivity != null && !toUserLastActivity.isSentinel()){
+//                        final long lastActiveMilli = toUserLastActivity.getLastActiveMilli();
+//                        if (toUserLastActivity.getLastState() == ActivityRecord.STATE_ACTIVE && (curTime - lastActiveMilli) > 1000*60*5){
+//                            log.info(String.format("Push from %s to %s, action %s is discarded, destination is active",
+//                                    fromUser, toUser, action));
+//                            continue;
+//                        }
+//                    }
 
                     // Check cache if this op was not performed recently.
                     final boolean doCache = curReq.getKey() != null && !curReq.getKey().isEmpty();
@@ -420,6 +420,14 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     if (doCache && messageKeyCache.containsKey(cacheKey)) {
                         log.debug(String.format("Duplicate operation detected, key: %s", cacheKey));
                     }
+
+                    // TODO: In order to support multi-device setup, adapt same delivery mechanism
+                    // TODO: like we have in normal push messages, addressing by resource ID,
+                    // TODO: routing messages via tokens tied to resource IDs.
+                    // TODO: On ACK receipt, create a delivery record and for next push request do not deliver the same message
+                    // TODO: to the given resource which ACKed the message. Still can be delivered to another devices/tokens/resources
+                    // TODO: from the same user which do not ACK message. Rethink the concept. If Acked on some device, maybe
+                    // TODO: we want to consider it ACKed on all devices as the same user does it.
 
                     // Persisting to the database + protection against flooding / errors. Keeps last 100 records
                     // for user-action pairs.
@@ -445,6 +453,14 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         });
 
         return true;
+    }
+
+    /**
+     * Triggers sending all available push messages for given users.
+     * @param users
+     */
+    public void triggerUserPushRecheck(final Collection<String> users){
+        triggerUserPushRecheck(users, null);
     }
 
     /**
@@ -890,7 +906,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         try {
             final String toUser = obj.getString("user");
             log.info(String.format("Starting trigger push job for user %s", toUser));
-            triggerUserPushRecheck(Collections.singletonList(toUser), null);
+            triggerUserPushRecheck(Collections.singletonList(toUser));
 
         } catch(Exception e){
             log.error("Exception in push request from queue handling", e);

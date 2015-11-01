@@ -1372,4 +1372,8 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
     public PushService getPushSvc() {
         return pushSvc;
     }
+
+    public PlatformPushHandler getpPushSvc() {
+        return pPushSvc;
+    }
 }
