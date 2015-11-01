@@ -13,6 +13,7 @@ import java.sql.Timestamp;
  * Created by dusanklinec on 14.07.15.
  */
 public class DbPlatformPush {
+    public static final String TABLE_NAME = "ofPhxPlatformMessages";
     public static final String FIELD_ID = "ofMsgId";
     public static final String FIELD_KEY = "ofMsgKey";
     public static final String FIELD_ACTION = "ofMsgAction";
@@ -26,6 +27,8 @@ public class DbPlatformPush {
     public static final String FIELD_DURABLE = "ofIsDurable";
     public static final String FIELD_UNIQUE = "ofIsUnique";
     public static final String FIELD_ACKWAIT = "ofAckWait";
+    public static final String FIELD_PRIORITY = "ofPriority";
+    public static final String FIELD_ALERT_KEY = "ofAlertKey";
     public static final String FIELD_AUX1 = "ofAux1";
     public static final String FIELD_AUX2 = "ofAux2";
     public static final String FIELD_AUX_DATA = "ofAuxData";
@@ -43,6 +46,8 @@ public class DbPlatformPush {
     protected boolean durable;
     protected boolean unique;
     protected boolean ackWait=true;
+    protected int priority;
+    protected Long alertKey;
     protected String aux1;
     protected String aux2;
     protected String auxData;
@@ -78,6 +83,10 @@ public class DbPlatformPush {
         pp.setDurable(rs.getBoolean(FIELD_DURABLE));
         pp.setUnique(rs.getBoolean(FIELD_UNIQUE));
         pp.setAckWait(rs.getBoolean(FIELD_ACKWAIT));
+        pp.setPriority(rs.getInt(FIELD_PRIORITY));
+
+        long alertKey = rs.getLong(FIELD_ALERT_KEY);
+        pp.alertKey = rs.wasNull() ? null : alertKey;
 
         pp.setAux1(rs.getString(FIELD_AUX1));
         pp.setAux2(rs.getString(FIELD_AUX2));
@@ -212,5 +221,21 @@ public class DbPlatformPush {
 
     public void setAckWait(boolean ackWait) {
         this.ackWait = ackWait;
+    }
+
+    public int getPriority() {
+        return priority;
+    }
+
+    public void setPriority(int priority) {
+        this.priority = priority;
+    }
+
+    public Long getAlertKey() {
+        return alertKey;
+    }
+
+    public void setAlertKey(Long alertKey) {
+        this.alertKey = alertKey;
     }
 }

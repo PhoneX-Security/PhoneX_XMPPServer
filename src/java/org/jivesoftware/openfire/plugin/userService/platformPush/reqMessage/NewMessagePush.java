@@ -39,7 +39,7 @@ public class NewMessagePush extends PushRequestMessage {
     }
 
     @Override
-    public String getAlertString() {
+    public String getAlertStringKey() {
         return "L_PHX_PUSH_NEW_MESSAGE";
     }
 }

@@ -81,6 +81,24 @@ public class PushRequestMessage {
     protected boolean requiresAck = true;
 
     /**
+     * Priority among other push messages.
+     * Affects how alert text is built.
+     */
+    protected int priority;
+
+    /**
+     * String key for alert localization, for general purpose push notifications.
+     */
+    protected Long alertKey;
+
+    /**
+     * If set to true this push request can come from the end client.
+     * Otherwise such message is blocked. E.g. one client cannot send general purpose text/marketing message
+     * to other users.
+     */
+    protected boolean canUserRequest = true;
+
+    /**
      * Database related message id.
      */
     protected Long messageId;
@@ -180,7 +198,7 @@ public class PushRequestMessage {
     /**
      * Returns platform push alert string notification.
      */
-    public String getAlertString() {
+    public String getAlertStringKey() {
         return "L_PHX_PUSH_ALERT";
     }
 
@@ -254,5 +272,29 @@ public class PushRequestMessage {
 
     public void setUrgencyType(int urgencyType) {
         this.urgencyType = urgencyType;
+    }
+
+    public int getPriority() {
+        return priority;
+    }
+
+    public void setPriority(int priority) {
+        this.priority = priority;
+    }
+
+    public Long getAlertKey() {
+        return alertKey;
+    }
+
+    public void setAlertKey(Long alertKey) {
+        this.alertKey = alertKey;
+    }
+
+    public boolean isCanUserRequest() {
+        return canUserRequest;
+    }
+
+    public void setCanUserRequest(boolean canUserRequest) {
+        this.canUserRequest = canUserRequest;
     }
 }

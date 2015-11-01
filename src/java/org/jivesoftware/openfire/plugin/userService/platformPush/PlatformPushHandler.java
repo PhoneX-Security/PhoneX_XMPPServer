@@ -267,7 +267,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             }
 
             // Process new push request message, add to queue and invoke sending.
-            onNewPushReq(request);
+            onNewPushReq(request, true);
 
         } catch(Exception e){
             log.warn("Error in parsing request body", e);
@@ -351,7 +351,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
      * @param request
      * @return
      */
-    public boolean onNewPushReq(final PushRequest request){
+    public boolean onNewPushReq(final PushRequest request, final boolean cameFromUser){
         if (request == null){
             log.warn("Error in parsing push request");
             return false;
@@ -389,6 +389,12 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     if (!usrPlugin.canProbePresence(fromUser, toUser.toBareJID())){
                         log.warn(String.format("User %s cannot send push notification to %s, blocked by roster permission model",
                                 fromUser, toUser));
+                        continue;
+                    }
+
+                    // Check if given message can be requested by end user.
+                    if (cameFromUser && !curReq.isCanUserRequest()){
+                        log.warn(String.format("User %s attempted to request push message delivery blocked by policy %s", fromUser, curReq.getAction()));
                         continue;
                     }
 
@@ -801,7 +807,66 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             }
 
             // Process new push request message, add to queue and invoke sending.
-            onNewPushReq(request);
+            onNewPushReq(request, false);
+
+        } catch(Exception e){
+            log.error("Exception in push request from queue handling", e);
+        }
+    }
+
+    /**
+     * Entry point for new incoming RAW push message sent to XMPP queue.
+     * Accepts push request messages, from the queue.
+     *
+     * {"action"    :"pushRaw",
+     *  "user"      :"test1@phone-x.net",
+     *  "push" :{
+     *      "aps" : {
+     *          "alert" : {
+     *              "title" : "Game Request",
+     *              "body" : "Bob wants to play poker",
+     *              "action-loc-key" : "PLAY"
+     *          },
+     *          "badge" : 5,
+     *      },
+     *      "acme1" : "bar",
+     *      "acme2" : [ "bang",  "whiz" ]
+     *   }
+     *  }
+     *
+     * @param obj
+     */
+    public void handlePushRawRequestFromQueue(JSONObject obj) {
+        try {
+            final String toUser = obj.getString("user");
+            final JSONObject pushMsg = obj.getJSONObject("push");
+
+            // Load all tokens for given set of users.
+            final List<TokenConfig> tokenList = DbEntityManager.loadTokens(Collections.singletonList(toUser));
+            for(TokenConfig curToken : tokenList) {
+                try {
+                    int now = (int) (new Date().getTime() / 1000);
+                    String payload = pushMsg.toString();
+
+                    EnhancedApnsNotification notification = new EnhancedApnsNotification(
+                            INCREMENT_ID() /* Next ID */,
+                            now + 60 * 60 * 24 * 30 /* Expire in 30 days */,
+                            curToken.getToken() /* Device Token */,
+                            payload);
+
+                    if (curToken.getDebug()) {
+                        log.info(String.format("Broadcasting devel push message, to: %s, payload: %s", curToken.getUser(), payload));
+                        apnSvcDevel.push(notification);
+
+                    } else {
+                        log.info(String.format("Broadcasting production push message, to: %s, payload: %s", curToken.getUser(), payload));
+                        apnSvcProd.push(notification);
+
+                    }
+                } catch (Exception ex) {
+                    log.error("Exception in sending a push to particular token", ex);
+                }
+            }
 
         } catch(Exception e){
             log.error("Exception in push request from queue handling", e);

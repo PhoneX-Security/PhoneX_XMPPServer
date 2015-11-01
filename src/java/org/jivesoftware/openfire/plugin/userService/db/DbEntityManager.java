@@ -694,7 +694,7 @@ public class DbEntityManager {
         PreparedStatement pstmtDelete = null;
 
         // Insert query, full row.
-        final String q  = "INSERT INTO ofPhxPlatformMessages VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        final String q  = "INSERT INTO ofPhxPlatformMessages VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         // Delete msg by its key
         final String delKey = "DELETE FROM ofPhxPlatformMessages WHERE ofFromUser=? AND ofFromResource=? AND ofMsgKey=?";
         // Delete msg by its action
@@ -742,9 +742,17 @@ public class DbEntityManager {
                 pstmt.setBoolean(10, true);
                 pstmt.setBoolean(11, req.isUnique());
                 pstmt.setBoolean(12, req.requiresAck());
-                pstmt.setString(13, null);
-                pstmt.setString(14, null);
+                pstmt.setInt(13, req.getPriority());
+
+                if (req.getAlertKey()==null) {
+                    pstmt.setNull(14, Types.INTEGER);
+                } else {
+                    pstmt.setLong(14, req.getAlertKey());
+                }
+
                 pstmt.setString(15, null);
+                pstmt.setString(16, null);
+                pstmt.setString(17, null);
                 pstmt.executeUpdate();
             }
 

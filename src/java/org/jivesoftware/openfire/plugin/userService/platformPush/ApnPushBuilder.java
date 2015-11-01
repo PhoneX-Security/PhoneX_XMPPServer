@@ -1,13 +1,10 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush;
 
-import com.google.api.client.json.Json;
 import com.notnoop.apns.APNS;
 import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessage;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessageBuilder;
-import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.NewMissedCallMsg;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.*;
-import org.jivesoftware.openfire.plugin.userService.push.PushMessage;
 import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -36,7 +33,7 @@ public class ApnPushBuilder {
      *   8 .. new event
      *   16 . new attention
      */
-    private static final String[] alertMap = {
+    private static final String[] ALERT_KEY_MAP = {
             /* 0 */ null,
             /* 1 */ "L_PHX_PUSH_ALERT_MSG",
             /* 2 */ "L_PHX_PUSH_ALERT_MCALL",
@@ -72,7 +69,7 @@ public class ApnPushBuilder {
     protected String topAlert = null;
     protected int totalUrgency = PushRequestMessage.URGENCY_MIN;
     protected int totalBadge = 0;
-    protected String alertString;
+    protected String alertStringKey;
 
     protected JSONObject jsonPayload;
     protected String payload;
@@ -116,14 +113,17 @@ public class ApnPushBuilder {
             if (msg != null){
                 final int curUrg = msg.getUrgencyType();
                 if (curUrg > totalUrgency){
-                    topAlert = msg.getAlertString();
+                    topAlert = msg.getAlertStringKey();
                     totalUrgency = curUrg;
                 }
             }
         }
     }
 
-    public void buildAlertString(){
+    /**
+     * Attempts to construct alert string key from all messages in the current push bulk.
+     */
+    public void buildAlertStringKey(){
         boolean newMsg    = actionPush.containsKey(NewMissedCallPush.ACTION);
         boolean newMissed = actionPush.containsKey(NewMessagePush.ACTION);
         boolean newCall   = actionPush.containsKey(NewActiveCallPush.ACTION);
@@ -134,16 +134,16 @@ public class ApnPushBuilder {
         alertIdx    |= newCall      ? 1 << 2: 0;
         alertIdx    |= newEvent     ? 1 << 3: 0;
         alertIdx    |= newAttention ? 1 << 4: 0;
-        if (alertIdx >= alertMap.length){
+        if (alertIdx >= ALERT_KEY_MAP.length){
             try {
-                alertString = alertMap[MiscUtils.lg2(alertIdx)];
+                alertStringKey = ALERT_KEY_MAP[MiscUtils.lg2(alertIdx)];
 
             } catch(Exception e){
                 log.error("Exception in alert string building", e);
             }
 
         } else {
-            alertString = alertMap[alertIdx];
+            alertStringKey = ALERT_KEY_MAP[alertIdx];
 
         }
     }
@@ -156,7 +156,7 @@ public class ApnPushBuilder {
         preprocess();
 
         // Generate total alert name.
-        buildAlertString();
+        buildAlertStringKey();
 
         // Build custom JSON notification.
         JSONObject root = new JSONObject();
@@ -182,7 +182,7 @@ public class ApnPushBuilder {
         // Build general APN payload.
         final String tmpPayload = APNS.newPayload()
                 .badge(totalBadge)
-                .localizedKey(alertString)
+                .localizedKey(alertStringKey)
                 .actionKey("Show")
                 .build();
 
@@ -219,8 +219,8 @@ public class ApnPushBuilder {
         return this;
     }
 
-    public String getAlertString() {
-        return alertString;
+    public String getAlertStringKey() {
+        return alertStringKey;
     }
 
     public int getTotalBadge() {

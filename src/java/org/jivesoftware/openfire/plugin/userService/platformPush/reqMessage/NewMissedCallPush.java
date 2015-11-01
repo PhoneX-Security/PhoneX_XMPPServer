@@ -39,7 +39,7 @@ public class NewMissedCallPush extends PushRequestMessage {
     }
 
     @Override
-    public String getAlertString() {
+    public String getAlertStringKey() {
         return "L_PHX_PUSH_NEW_MISSED_CALL";
     }
 }
