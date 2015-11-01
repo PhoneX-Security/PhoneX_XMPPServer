@@ -930,7 +930,7 @@ public class DbEntityManager {
             for(int i = 0; i < cnt; i++){
                 sb.append(pairTimeFmt);
                 if (i+1 < cnt){
-                    sb.append(" AND ");
+                    sb.append(" OR ");
                 }
             }
             sb.append(" ) ");
@@ -944,7 +944,7 @@ public class DbEntityManager {
                 pstmt.setString(++ctr, pair.action);
                 pstmt.setTimestamp(++ctr, new Timestamp(pair.timestamp));
             }
-
+            
             return pstmt.executeUpdate();
         }
         catch (SQLException e) {
