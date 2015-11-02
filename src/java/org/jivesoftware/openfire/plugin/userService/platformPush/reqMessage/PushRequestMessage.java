@@ -1,5 +1,6 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage;
 
+import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.xmpp.packet.JID;
@@ -24,6 +25,7 @@ public class PushRequestMessage {
     public static final String FIELD_TARGET = "target";
     public static final String FIELD_CANCEL = "cancel";
     public static final String FIELD_WAITACK = "waitack";
+    public static final String FIELD_TIMESTAMP = "tstamp";
 
     public static final int URGENCY_MIN = 0; // MIN bound.
     public static final int URGENCY_BACKGROUND = 0; // certificate check and such.
@@ -79,6 +81,11 @@ public class PushRequestMessage {
      * If set to false, message is deleted after sending.
      */
     protected boolean requiresAck = true;
+
+    /**
+     * Originating event timestamp, millisecond precision.
+     */
+    protected long tstamp;
 
     /**
      * Priority among other push messages.
@@ -145,6 +152,10 @@ public class PushRequestMessage {
 
         if (json.has(FIELD_WAITACK)){
             requiresAck = MiscUtils.getAsBoolean(json, FIELD_WAITACK);
+        }
+
+        if (json.has(FIELD_TIMESTAMP)){
+            tstamp = MiscUtils.getAsLong(json, FIELD_TIMESTAMP);
         }
     }
 
@@ -296,5 +307,13 @@ public class PushRequestMessage {
 
     public void setCanUserRequest(boolean canUserRequest) {
         this.canUserRequest = canUserRequest;
+    }
+
+    public long getTstamp() {
+        return tstamp;
+    }
+
+    public void setTstamp(long tstamp) {
+        this.tstamp = tstamp;
     }
 }

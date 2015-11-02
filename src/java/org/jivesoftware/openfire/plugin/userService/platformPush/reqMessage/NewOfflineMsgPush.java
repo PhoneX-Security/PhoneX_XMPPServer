@@ -4,19 +4,17 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Simple push notification message. Client is asking us to send a destination user simple new event message which
- * does not require ACK.
+ * Push request sent by server to notify a destination user he has a new offline message.
  *
- * Created by dusanklinec on 01.11.15.
+ * Created by dusanklinec on 02.11.15.
  */
-public class NewEventPush  extends PushRequestMessage {
-    public static final String ACTION = "newEvent";
+public class NewOfflineMsgPush extends PushRequestMessage {
+    public static final String ACTION = "newOfflineMsg";
 
-    public NewEventPush() {
-        requiresAck = false;
+    public NewOfflineMsgPush() {
     }
 
-    public NewEventPush(JSONObject json) throws JSONException {
+    public NewOfflineMsgPush(JSONObject json) throws JSONException {
         super(json);
     }
 
@@ -27,17 +25,17 @@ public class NewEventPush  extends PushRequestMessage {
 
     @Override
     public boolean isUnique() {
-        return true;
+        return false;
     }
 
     @Override
     public int getUrgencyType() {
-        return URGENCY_REALTIME;
+        return URGENCY_NEW_USER_EVENT;
     }
 
     @Override
     public boolean requiresAck() {
-        return false;
+        return true;
     }
 
     @Override
@@ -47,6 +45,6 @@ public class NewEventPush  extends PushRequestMessage {
 
     @Override
     public String getAlertStringKey() {
-        return "L_PHX_PUSH_NEW_EVENT";
+        return "L_PHX_PUSH_NEW_OFFLINE_MESSAGE";
     }
 }

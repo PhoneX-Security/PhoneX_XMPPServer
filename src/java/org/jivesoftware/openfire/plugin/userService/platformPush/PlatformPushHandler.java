@@ -390,7 +390,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     }
 
                     // Check roster permissions.
-                    if (!usrPlugin.canProbePresence(fromUser, toUser.getNode())){
+                    if (fromUser != null && !usrPlugin.canProbePresence(fromUser, toUser.getNode())){
                         log.warn(String.format("User %s cannot send push notification to %s, blocked by roster permission model",
                                 fromUser, toUser.toBareJID()));
                         continue;
@@ -806,9 +806,10 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
      * {"action"    :"pushReq",
      *  "user"      :"test1@phone-x.net",
      *  "pushreq"   :[
-     *    {"push":"newEvent",       "target": "test-internal3@phone-x.net"},
+     *    {"push":"newEvent",       "target": "test-internal3@phone-x.net", "tstamp": 1446487435000},
      *    {"push":"newAttention",   "target": "test-internal3@phone-x.net"},
      *    {"push":"newMessage",     "target": "test-internal3@phone-x.net"},
+     *    {"push":"newOfflineMsg",  "target": "test-internal3@phone-x.net", "tstamp": 1446487435000},
      *    {"push":"newMissedCall",  "target": "test-internal3@phone-x.net"},
      *    {"push":"newCall",        "target": "test-internal3@phone-x.net", "key":"af45bed", "expire":180000,}
      *  ]
@@ -818,10 +819,10 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
      */
     public void handlePushRequestFromQueue(JSONObject obj) {
         try {
-            final String fromUser = obj.getString("user");
+            final String fromUser = obj.has("user") ? obj.getString("user") : null;
             PushParser parser = new PushParser();
 
-            final PushRequest request = parser.processPushRequest(obj, new JID(fromUser));
+            final PushRequest request = parser.processPushRequest(obj, fromUser == null ? null : new JID(fromUser));
             if (request == null){
                 log.warn("Error in parsing push request");
                 return;

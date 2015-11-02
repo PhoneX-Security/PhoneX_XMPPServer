@@ -129,14 +129,21 @@ public class ApnPushBuilder {
         boolean newCall   = actionPush.containsKey(NewActiveCallPush.ACTION);
         boolean newEvent  = actionPush.containsKey(NewEventPush.ACTION);
         boolean newAttention = actionPush.containsKey(NewAttentionPush.ACTION);
+        boolean newOffline = actionPush.containsKey(NewOfflineMsgPush.ACTION);
+
         int alertIdx = newMsg       ? 1 : 0;
         alertIdx    |= newMissed    ? 1 << 1: 0;
         alertIdx    |= newCall      ? 1 << 2: 0;
         alertIdx    |= newEvent     ? 1 << 3: 0;
         alertIdx    |= newAttention ? 1 << 4: 0;
+        alertIdx    |= newOffline   ? 1 << 5: 0;
+
         if (alertIdx >= ALERT_KEY_MAP.length){
             try {
-                alertStringKey = ALERT_KEY_MAP[MiscUtils.lg2(alertIdx)];
+                final int highestBit = MiscUtils.lg2(alertIdx);
+                if (highestBit < ALERT_KEY_MAP.length) {
+                    alertStringKey = ALERT_KEY_MAP[highestBit];
+                }
 
             } catch(Exception e){
                 log.error("Exception in alert string building", e);

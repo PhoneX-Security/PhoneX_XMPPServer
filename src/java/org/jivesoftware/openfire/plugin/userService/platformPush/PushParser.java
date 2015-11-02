@@ -45,6 +45,9 @@ public class PushParser {
         }  else if (NewEventPush.ACTION.equals(action)){
             pm = new NewEventPush();
 
+        }  else if (NewOfflineMsgPush.ACTION.equals(action)){
+            pm = new NewOfflineMsgPush();
+
         } else if (generic) {
             pm = new PushRequestMessage();
 
@@ -75,6 +78,9 @@ public class PushParser {
 
         }  else if (NewEventMsg.ACTION.equals(action)){
             pm = new NewEventPush();
+
+        }  else if (NewOfflineMsg.ACTION.equals(action)){
+            pm = new NewOfflineMsgPush();
 
         } else if (generic) {
             pm = new PushRequestMessage();

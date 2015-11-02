@@ -36,6 +36,11 @@ public class NewAttentionPush extends PushRequestMessage {
     }
 
     @Override
+    public boolean isCanUserRequest() {
+        return false;
+    }
+
+    @Override
     public String getAlertStringKey() {
         return "L_PHX_PUSH_NEW_ATTENTION";
     }
