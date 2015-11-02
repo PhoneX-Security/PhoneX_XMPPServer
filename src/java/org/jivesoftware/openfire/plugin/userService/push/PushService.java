@@ -19,6 +19,7 @@ import org.jivesoftware.openfire.plugin.userService.push.iq.PushIq;
 import org.jivesoftware.openfire.plugin.userService.push.iq.PushQueryIq;
 import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushMessage;
 import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushPart;
+import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
 import org.jivesoftware.openfire.roster.Roster;
 import org.jivesoftware.openfire.roster.RosterItem;
 import org.json.JSONArray;
@@ -191,7 +192,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      */
     public void pushClistSync(String user, JSONObject obj, JSONObject msg) throws JSONException {
         final JID to = new JID(user);
-        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : MiscUtils.getAsLong(msg, "tstamp");
 
         // Build push action.
         SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
@@ -208,7 +209,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      */
     public void pushDHKeyUsed(String user, JSONObject obj, JSONObject msg) throws JSONException {
         final JID to = new JID(user);
-        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : MiscUtils.getAsLong(msg, "tstamp");
 
         // Build push action.
         SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
@@ -225,7 +226,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      */
     public void pushVersionCheck(String user, JSONObject obj, JSONObject msg) throws JSONException {
         final JID to = new JID(user);
-        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : MiscUtils.getAsLong(msg, "tstamp");
 
         // Build push action.
         SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
@@ -242,7 +243,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      */
     public void pushContactCertUpdate(String user, JSONObject obj, JSONObject msg) throws JSONException {
         final JID to = new JID(user);
-        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : MiscUtils.getAsLong(msg, "tstamp");
 
         // Build push action.
         SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
@@ -259,7 +260,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      */
     public void pushLicenseCheck(String user, JSONObject obj, JSONObject msg) throws JSONException {
         final JID to = new JID(user);
-        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : MiscUtils.getAsLong(msg, "tstamp");
 
         // Build push action.
         SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
@@ -276,7 +277,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      */
     public void pushLogoutEvent(String user, JSONObject obj, JSONObject msg) throws JSONException {
         final JID to = new JID(user);
-        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : MiscUtils.getAsLong(msg, "tstamp");
 
         // Build push action.
         SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);
@@ -292,7 +293,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      */
     public void pushNewCertEvent(String user, JSONObject obj, JSONObject msg) throws JSONException {
         final JID to = new JID(user);
-        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : MiscUtils.getAsLong(msg, "tstamp");
         if (!msg.has("data")){
             log.info("Push does not contain data.");
             return;
@@ -304,7 +305,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
             return;
         }
 
-        final long certNotBefore = data.getLong(NewCertEventMessage.FIELD_NOT_BEFORE);
+        final long certNotBefore = MiscUtils.getAsLong(data, NewCertEventMessage.FIELD_NOT_BEFORE);
         final String certHasPrefix = data.has(NewCertEventMessage.FIELD_CERT_HASH_PREFIX) ? data.getString(NewCertEventMessage.FIELD_CERT_HASH_PREFIX) : null;
         log.info("new cert push detected: " + obj.toString());
 
@@ -368,7 +369,7 @@ public class PushService extends IQHandler implements IQResultListener, ServerFe
      */
     public void pushPairingRequestEvent(String user, JSONObject obj, JSONObject msg) throws JSONException {
         final JID to = new JID(user);
-        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : msg.getLong("tstamp");
+        final Long tstamp = !msg.has("tstamp") ? System.currentTimeMillis() : MiscUtils.getAsLong(msg, "tstamp");
 
         // Build push action.
         SimplePushMessage msgx = new SimplePushMessage(to.toBareJID(), tstamp);

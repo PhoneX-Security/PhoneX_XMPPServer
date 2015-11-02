@@ -132,7 +132,7 @@ public class PushRequestMessage {
         }
 
         if (json.has(FIELD_EXPIRE)){
-            expiration = json.getLong(FIELD_EXPIRE);
+            expiration = MiscUtils.getAsLong(json, FIELD_EXPIRE);
         }
 
         if (json.has(FIELD_TARGET)){
@@ -140,11 +140,11 @@ public class PushRequestMessage {
         }
 
         if (json.has(FIELD_CANCEL)){
-            cancel = json.getBoolean(FIELD_CANCEL);
+            cancel = MiscUtils.getAsBoolean(json, FIELD_CANCEL);
         }
 
         if (json.has(FIELD_WAITACK)){
-            requiresAck = json.getBoolean(FIELD_WAITACK);
+            requiresAck = MiscUtils.getAsBoolean(json, FIELD_WAITACK);
         }
     }
 

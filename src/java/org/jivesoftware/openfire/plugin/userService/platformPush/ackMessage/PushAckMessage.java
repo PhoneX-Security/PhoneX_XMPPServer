@@ -3,6 +3,7 @@ package org.jivesoftware.openfire.plugin.userService.platformPush.ackMessage;
 import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
 import org.jivesoftware.openfire.plugin.userService.db.DbPushMessage;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.PushRequestMessage;
+import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.xmpp.packet.JID;
@@ -61,7 +62,7 @@ public class PushAckMessage {
         }
 
         if (json.has(FIELD_TIME_STAMP)){
-            timestamp = json.getLong(FIELD_TIME_STAMP);
+            timestamp = MiscUtils.getAsLong(json, FIELD_TIME_STAMP);
         }
     }
 

@@ -8,6 +8,7 @@ package org.jivesoftware.openfire.plugin.userService.roster;
 
 import org.codehaus.jackson.annotate.JsonAutoDetect;
 import org.codehaus.jackson.annotate.JsonProperty;
+import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -42,9 +43,9 @@ public class TransferRosterItem implements Serializable {
         final TransferRosterItem tri = new TransferRosterItem();
         tri.jid = obj.getString("jid");
         tri.name = obj.has("name") ? obj.getString("name") : null;
-        tri.subscription = obj.has("subscription") ? obj.getInt("subscription") : null;
-        tri.recvStatus = obj.has("recvStatus") ? obj.getInt("recvStatus") : null;
-        tri.askStatus = obj.has("askStatus") ? obj.getInt("askStatus") : null;
+        tri.subscription = obj.has("subscription") ? MiscUtils.getAsInteger(obj, "subscription") : null;
+        tri.recvStatus = obj.has("recvStatus") ? MiscUtils.getAsInteger(obj, "recvStatus") : null;
+        tri.askStatus = obj.has("askStatus") ? MiscUtils.getAsInteger(obj, "askStatus") : null;
         tri.groups = obj.has("groups") ? obj.getString("groups") : null;
         return tri;
     }

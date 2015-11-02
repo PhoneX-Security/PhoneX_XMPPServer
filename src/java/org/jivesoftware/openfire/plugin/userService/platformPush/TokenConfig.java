@@ -1,5 +1,6 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush;
 
+import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -78,7 +79,7 @@ public class TokenConfig {
         }
 
         if (json.has(FIELD_DEBUG)){
-            toRet.debug = json.getBoolean(FIELD_DEBUG);
+            toRet.debug = MiscUtils.getAsBoolean(json, FIELD_DEBUG);
         }
 
         return toRet;
