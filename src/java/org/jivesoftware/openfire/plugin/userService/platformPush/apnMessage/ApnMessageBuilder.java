@@ -2,11 +2,15 @@ package org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage;
 
 import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Created by dusanklinec on 17.07.15.
  */
 public class ApnMessageBuilder {
+    private static final Logger log = LoggerFactory.getLogger(ApnMessageBuilder.class);
+
     /**
      * Constructs Apple push notification message from database push.
      * @param ppush
@@ -34,10 +38,15 @@ public class ApnMessageBuilder {
         } else if (NewEventPush.ACTION.equals(action)){
             ab = new NewEventMsg();
 
+        } else if (NewOfflineMsgPush.ACTION.equals(action)){
+            ab = new NewOfflineMsg();
+
         } else if (allowGeneric){
+            log.warn("Using generic APN message for: %s", action);
             ab = new ApnMessageBase();
 
         } else {
+            log.warn("Unknown APN message for: %s", action);
             return null;
 
         }
