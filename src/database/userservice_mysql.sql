@@ -76,3 +76,13 @@ CREATE TABLE ofPhxPlatformMessages (
    ofAuxData          TEXT              NULL,
    PRIMARY KEY (ofMsgId)
 ) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
+
+CREATE TABLE  `opensips_fire`.`ofPhxPushLocalization` (
+   `id` BIGINT NOT NULL ,
+   `ofStringKey` VARCHAR( 64 ) NOT NULL ,
+   `ofLangCode` VARCHAR( 6 ) NOT NULL DEFAULT  'en',
+   `ofPlural` ENUM(  'none',  'zero',  'one',  'two',  'few',  'many',  'other' ) NOT NULL DEFAULT  'none',
+   `ofTranslation` TEXT NOT NULL ,
+   PRIMARY KEY (`id`) ,
+   INDEX (`ofStringKey`)
+) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
