@@ -70,6 +70,7 @@ public class ApnPushBuilder {
     protected int totalUrgency = PushRequestMessage.URGENCY_MIN;
     protected int totalBadge = 0;
     protected String alertStringKey;
+    protected String alertString;
 
     protected JSONObject jsonPayload;
     protected String payload;
@@ -156,14 +157,27 @@ public class ApnPushBuilder {
     }
 
     /**
+     * BBuilds string description
+     */
+    public void buildAlertString(){
+        // TODO: implement.
+        alertString = "New activity on PhoneX";
+    }
+
+    public void build() throws JSONException {
+        buildForToken(null);
+    }
+
+    /**
      * Build apple push.
      */
-    public void build() throws JSONException {
+    public void buildForToken(TokenConfig token) throws JSONException {
         // Group, categorize, compute priorities.
         preprocess();
 
         // Generate total alert name.
         buildAlertStringKey();
+        buildAlertString();
 
         // Build custom JSON notification.
         JSONObject root = new JSONObject();
@@ -189,7 +203,8 @@ public class ApnPushBuilder {
         // Build general APN payload.
         final String tmpPayload = APNS.newPayload()
                 .badge(totalBadge)
-                .localizedKey(alertStringKey)
+                .alertBody(alertString)
+                .alertTitle(alertString)
                 .actionKey("Show")
                 .build();
 

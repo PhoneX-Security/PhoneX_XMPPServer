@@ -566,13 +566,14 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     .setPushMessagesList(list);
 
             try {
-                builder.build();
-
                 // TODO: if this message contains push request that has active expiration time, e.g. incoming call,
                 // TODO: it should affect the expiration of the wrapping message. After this expiration time is over
                 // TODO: this service should post a new push notification send job, this time without expired notification.
-                final String payload = builder.getPayload();
                 for(TokenConfig token : tokens){
+                    // For each token build separately - different language settings?
+                    builder.buildForToken(token);
+                    final String payload = builder.getPayload();
+
                     int now = (int)(new Date().getTime()/1000);
                     // TODO: when expiration is correctly implemented for expiring notifications, fix this.
                     // TODO: Expiration is useful for active call. After call is expired, new push notification without call
