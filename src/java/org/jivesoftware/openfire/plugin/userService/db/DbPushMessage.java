@@ -4,6 +4,7 @@ package org.jivesoftware.openfire.plugin.userService.db;
  * Created by dusanklinec on 11.03.15.
  */
 public class DbPushMessage {
+    public static final String TABLE_NAME = "ofPushMessages";
     public static final String FIELD_ID = "msgId";
     public static final String FIELD_ACTION = "msgAction";
     public static final String FIELD_TIME = "msgTime";

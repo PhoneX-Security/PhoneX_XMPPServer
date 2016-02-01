@@ -23,31 +23,31 @@ import java.util.List;
  */
 public class DbEntityManager {
     private static final Logger log = LoggerFactory.getLogger(DbEntityManager.class);
-    private static final String SQL_FETCH_MESSAGES_USR_ACTION="SELECT * FROM ofPushMessages WHERE forUser=? AND msgAction=?";
-    private static final String SQL_FETCH_MESSAGES_USR="SELECT * FROM ofPushMessages WHERE forUser=?";
-    private static final String SQL_DELETE_MESSAGES_FMT="DELETE FROM ofPushMessages WHERE msgID IN(%s)";
-    private static final String SQL_DELETE_MESSAGES_USR="DELETE FROM ofPushMessages WHERE msgAction=? AND forUser=?";
-    private static final String SQL_EXPIRE_PUSH_REQ="DELETE FROM ofPhxPlatformMessages WHERE ofMsgExpire IS NOT NULL AND ofMsgExpire<=NOW()";
-    private static final String SQL_EXPIRE_PUSH_REQ_USR="DELETE FROM ofPhxPlatformMessages WHERE ofMsgExpire IS NOT NULL AND ofMsgExpire<=NOW() AND ofForUser=?";
-    private static final String SQL_DELETE_PUSH_REQ_ID_FMT="DELETE FROM ofPhxPlatformMessages WHERE ofMsgId IN(%s)";
-    private static final String SQL_DELETE_PUSH_REQ_USR_KEY_FMT="DELETE FROM ofPhxPlatformMessages WHERE ofForUser=? AND ofMsgKey IS NOT NULL AND ofMsgKey IN(%s)";
-    private static final String SQL_DELETE_PUSH_REQ_USR_ACTTIME_FMT="DELETE FROM ofPhxPlatformMessages WHERE ofForUser=? AND %s";
-    private static final String SQL_DELETE_PUSH_REQ_USR_ACTION_TIME="DELETE FROM ofPhxPlatformMessages WHERE ofForUser=? AND ofMsgAction=? AND ofMsgTime<?";
-    private static final String SQL_FETCH_TOKENS_USERS_FMT="SELECT * FROM ofPushTokenApple WHERE ofUser IN (%s)";
-    private static final String SQL_FETCH_PUSH_REQ_USERS_FMT="SELECT * FROM ofPhxPlatformMessages WHERE (ofMsgExpire > NOW() OR ofMsgExpire IS NULL) AND ofForUser IN (%s)";
-    private static final String SQL_DELETE_TOKENS_FMT="DELETE FROM ofPushTokenApple WHERE ofDeviceToken IN (%s)";
+    private static final String SQL_FETCH_MESSAGES_USR_ACTION="SELECT * FROM "+DbPushMessage.TABLE_NAME+" WHERE forUser=? AND msgAction=?";
+    private static final String SQL_FETCH_MESSAGES_USR="SELECT * FROM "+DbPushMessage.TABLE_NAME+" WHERE forUser=?";
+    private static final String SQL_DELETE_MESSAGES_FMT="DELETE FROM "+DbPushMessage.TABLE_NAME+" WHERE msgID IN(%s)";
+    private static final String SQL_DELETE_MESSAGES_USR="DELETE FROM "+DbPushMessage.TABLE_NAME+" WHERE msgAction=? AND forUser=?";
+    private static final String SQL_EXPIRE_PUSH_REQ="DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofMsgExpire IS NOT NULL AND ofMsgExpire<=NOW()";
+    private static final String SQL_EXPIRE_PUSH_REQ_USR="DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofMsgExpire IS NOT NULL AND ofMsgExpire<=NOW() AND ofForUser=?";
+    private static final String SQL_DELETE_PUSH_REQ_ID_FMT="DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofMsgId IN(%s)";
+    private static final String SQL_DELETE_PUSH_REQ_USR_KEY_FMT="DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofForUser=? AND ofMsgKey IS NOT NULL AND ofMsgKey IN(%s)";
+    private static final String SQL_DELETE_PUSH_REQ_USR_ACTTIME_FMT="DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofForUser=? AND %s";
+    private static final String SQL_DELETE_PUSH_REQ_USR_ACTION_TIME="DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofForUser=? AND ofMsgAction=? AND ofMsgTime<?";
+    private static final String SQL_FETCH_TOKENS_USERS_FMT="SELECT * FROM "+DbTokenConfig.TABLE_NAME+" WHERE ofUser IN (%s)";
+    private static final String SQL_FETCH_PUSH_REQ_USERS_FMT="SELECT * FROM "+DbPlatformPush.TABLE_NAME+" WHERE (ofMsgExpire > NOW() OR ofMsgExpire IS NULL) AND ofForUser IN (%s)";
+    private static final String SQL_DELETE_TOKENS_FMT="DELETE FROM "+DbTokenConfig.TABLE_NAME+" WHERE ofDeviceToken IN (%s)";
     private static final String SQL_CLEAN_PUSH_CREATE_TEMP_TABLE_FMT ="CREATE TEMPORARY TABLE IF NOT EXISTS cleanPlatformMessages AS (\n" +
             "SELECT tt.ofMsgId\n" +
             "FROM \n" +
             "      ( SELECT DISTINCT ofForUser, ofMsgAction             \n" +
-            "        FROM ofPhxPlatformMessages                    \n" +
+            "        FROM "+DbPlatformPush.TABLE_NAME+"                    \n" +
             "      ) AS du                          \n" +
             "  JOIN\n" +
-            "      ofPhxPlatformMessages AS tt\n" +
+            "      "+DbPlatformPush.TABLE_NAME+" AS tt\n" +
             "    ON  tt.ofForUser = du.ofForUser AND tt.ofMsgAction = du.ofMsgAction\n" +
             "    AND tt.ofMsgTime <\n" +
             "        ( SELECT ofMsgTime AS ts\n" +
-            "          FROM ofPhxPlatformMessages\n" +
+            "          FROM "+DbPlatformPush.TABLE_NAME+"\n" +
             "          WHERE ofForUser = du.ofForUser AND ofMsgAction=du.ofMsgAction\n" +
             "          ORDER BY ts DESC\n" +
             "          LIMIT 1 OFFSET %d\n" +
@@ -57,21 +57,21 @@ public class DbEntityManager {
             "SELECT tt.ofMsgId\n" +
             "FROM \n" +
             "      ( SELECT DISTINCT ofForUser, ofMsgAction             \n" +
-            "        FROM ofPhxPlatformMessages " +
+            "        FROM "+DbPlatformPush.TABLE_NAME+" " +
             "        WHERE ofForUser=? AND ofMsgAction=?                \n" +
             "      ) AS du                          \n" +
             "  JOIN\n" +
-            "      ofPhxPlatformMessages AS tt\n" +
+            "      "+DbPlatformPush.TABLE_NAME+" AS tt\n" +
             "    ON  tt.ofForUser = du.ofForUser AND tt.ofMsgAction = du.ofMsgAction\n" +
             "    AND tt.ofMsgTime <\n" +
             "        ( SELECT ofMsgTime AS ts\n" +
-            "          FROM ofPhxPlatformMessages\n" +
+            "          FROM "+DbPlatformPush.TABLE_NAME+"\n" +
             "          WHERE ofForUser = du.ofForUser AND ofMsgAction=du.ofMsgAction\n" +
             "          ORDER BY ts DESC\n" +
             "          LIMIT 1 OFFSET %d\n" +
             "        ))";
 
-    private static final String SQL_CLEAN_PUSH_DELETE_BY_TEMP_TABLE = "DELETE FROM ofPhxPlatformMessages WHERE ofMsgId IN (SELECT ofMsgId FROM cleanPlatformMessages)";
+    private static final String SQL_CLEAN_PUSH_DELETE_BY_TEMP_TABLE = "DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofMsgId IN (SELECT ofMsgId FROM cleanPlatformMessages)";
 
     /**
      * Helper method for timestamp extraction from NULL field.
@@ -322,8 +322,8 @@ public class DbEntityManager {
         PreparedStatement pstmtDelete = null;
         ResultSet rs = null;
 
-        final String q  = "INSERT INTO ofPushMessages VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        final String dq = "DELETE FROM ofPushMessages WHERE forUser=? AND forResource=? AND msgAction=? AND msgTime <= ?";
+        final String q  = "INSERT INTO "+DbPushMessage.TABLE_NAME+" VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        final String dq = "DELETE FROM "+DbPushMessage.TABLE_NAME+" WHERE forUser=? AND forResource=? AND msgAction=? AND msgTime <= ?";
         try {
             con = DbConnectionManager.getConnection();
             con.setAutoCommit(false);
@@ -382,8 +382,8 @@ public class DbEntityManager {
         PreparedStatement pstmtDelete = null;
         ResultSet rs = null;
 
-        final String q  = "INSERT INTO ofPushDelivery VALUES (NULL, ?, ?, ?, ?, ?)";
-        final String dq = "DELETE FROM ofPushDelivery WHERE msgId=? AND forUser=? AND forResource=?";
+        final String q  = "INSERT INTO "+DbPushDelivery.TABLE_NAME+" VALUES (NULL, ?, ?, ?, ?, ?)";
+        final String dq = "DELETE FROM "+DbPushDelivery.TABLE_NAME+" WHERE msgId=? AND forUser=? AND forResource=?";
         try {
             con = DbConnectionManager.getConnection();
             con.setAutoCommit(false);
@@ -430,8 +430,8 @@ public class DbEntityManager {
         PreparedStatement pstmt = null;
         PreparedStatement pstmtDelete = null;
 
-        final String q  = "INSERT INTO ofPushTokenApple VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        final String dq = "DELETE FROM ofPushTokenApple WHERE ofUser=? AND ofResource=?";
+        final String q  = "INSERT INTO "+DbTokenConfig.TABLE_NAME+" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        final String dq = "DELETE FROM "+DbTokenConfig.TABLE_NAME+" WHERE ofUser=? AND ofResource=?";
         try {
             final JID user = tokenConfig.getUser();
 
@@ -695,13 +695,13 @@ public class DbEntityManager {
         PreparedStatement pstmtDelete = null;
 
         // Insert query, full row.
-        final String q  = "INSERT INTO ofPhxPlatformMessages VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        final String q  = "INSERT INTO "+DbPlatformPush.TABLE_NAME+" VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         // Delete msg by its key
-        final String delKey = "DELETE FROM ofPhxPlatformMessages WHERE ofFromUser=? AND ofFromResource=? AND ofMsgKey=?";
+        final String delKey = "DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofFromUser=? AND ofFromResource=? AND ofMsgKey=?";
         // Delete msg by its action
-        final String delAct = "DELETE FROM ofPhxPlatformMessages WHERE ofFromUser=? AND ofFromResource=? AND ofMsgAction=?";
+        final String delAct = "DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofFromUser=? AND ofFromResource=? AND ofMsgAction=?";
         // Delete msg by its action & destination.
-        final String delActUsr = "DELETE FROM ofPhxPlatformMessages WHERE ofFromUser=? AND ofFromResource=? AND ofMsgAction=? AND ofForUser=?";
+        final String delActUsr = "DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofFromUser=? AND ofFromResource=? AND ofMsgAction=? AND ofForUser=?";
         try {
             final JID user = parent.getFromUser();
             final String key = req.getKey();

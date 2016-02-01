@@ -5,6 +5,7 @@ package org.jivesoftware.openfire.plugin.userService.db;
  * Created by dusanklinec on 15.07.15.
  */
 public class DbTokenConfig {
+    public static final String TABLE_NAME = "ofPushTokenApple";
     public static final String FIELD_USER = "ofUser";
     public static final String FIELD_RESOURCE = "ofResource";
     public static final String FIELD_TOKEN = "ofDeviceToken";

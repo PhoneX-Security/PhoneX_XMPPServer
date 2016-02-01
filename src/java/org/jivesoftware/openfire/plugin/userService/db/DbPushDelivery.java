@@ -4,6 +4,7 @@ package org.jivesoftware.openfire.plugin.userService.db;
  * Created by dusanklinec on 11.03.15.
  */
 public class DbPushDelivery {
+    public static final String TABLE_NAME = "ofPushDelivery";
     public static final String FIELD_ID = "dlvrID";
     public static final String FIELD_MSG_ID = "msgId";
     public static final String FIELD_TIME = "dlvrTime";
