@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
+ * Basic database entity manager.
  * Created by dusanklinec on 12.03.15.
  */
 public class DbEntityManager {
@@ -33,8 +34,8 @@ public class DbEntityManager {
     private static final String SQL_DELETE_PUSH_REQ_USR_KEY_FMT="DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofForUser=? AND ofMsgKey IS NOT NULL AND ofMsgKey IN(%s)";
     private static final String SQL_DELETE_PUSH_REQ_USR_ACTTIME_FMT="DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofForUser=? AND %s";
     private static final String SQL_DELETE_PUSH_REQ_USR_ACTION_TIME="DELETE FROM "+DbPlatformPush.TABLE_NAME+" WHERE ofForUser=? AND ofMsgAction=? AND ofMsgTime<?";
-    private static final String SQL_FETCH_TOKENS_USERS_FMT="SELECT * FROM "+DbTokenConfig.TABLE_NAME+" WHERE ofUser IN (%s)";
     private static final String SQL_FETCH_PUSH_REQ_USERS_FMT="SELECT * FROM "+DbPlatformPush.TABLE_NAME+" WHERE (ofMsgExpire > NOW() OR ofMsgExpire IS NULL) AND ofForUser IN (%s)";
+    private static final String SQL_FETCH_TOKENS_USERS_FMT="SELECT * FROM "+DbTokenConfig.TABLE_NAME+" WHERE ofUser IN (%s)";
     private static final String SQL_DELETE_TOKENS_FMT="DELETE FROM "+DbTokenConfig.TABLE_NAME+" WHERE ofDeviceToken IN (%s)";
     private static final String SQL_CLEAN_PUSH_CREATE_TEMP_TABLE_FMT ="CREATE TEMPORARY TABLE IF NOT EXISTS cleanPlatformMessages AS (\n" +
             "SELECT tt.ofMsgId\n" +
@@ -430,7 +431,7 @@ public class DbEntityManager {
         PreparedStatement pstmt = null;
         PreparedStatement pstmtDelete = null;
 
-        final String q  = "INSERT INTO "+DbTokenConfig.TABLE_NAME+" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        final String q  = "INSERT INTO "+DbTokenConfig.TABLE_NAME+" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         final String dq = "DELETE FROM "+DbTokenConfig.TABLE_NAME+" WHERE ofUser=? AND ofResource=?";
         try {
             final JID user = tokenConfig.getUser();
@@ -446,15 +447,16 @@ public class DbEntityManager {
             pstmt = con.prepareStatement(q);
             pstmt.setString(1, user.asBareJID().toString());
             pstmt.setString(2, user.getResource());
-            pstmt.setString(3, tokenConfig.getToken());
-            pstmt.setString(4, tokenConfig.getFakeUdid());
-            pstmt.setString   (5, tokenConfig.getVersion());
-            pstmt.setString(6, tokenConfig.getAppVersion());
-            pstmt.setString(7, tokenConfig.getOsVersion());
-            pstmt.setString   (8, tokenConfig.getLangList());
-            pstmt.setBoolean(9, tokenConfig.getDebug());
-            pstmt.setTimestamp(10, new Timestamp(System.currentTimeMillis()));
-            pstmt.setString(11, tokenConfig.getAuxJson());
+            pstmt.setString(3, tokenConfig.getPlatform());
+            pstmt.setString(4, tokenConfig.getToken());
+            pstmt.setString(5, tokenConfig.getFakeUdid());
+            pstmt.setString   (6, tokenConfig.getVersion());
+            pstmt.setString(7, tokenConfig.getAppVersion());
+            pstmt.setString(8, tokenConfig.getOsVersion());
+            pstmt.setString   (9, tokenConfig.getLangList());
+            pstmt.setBoolean(10, tokenConfig.getDebug());
+            pstmt.setTimestamp(11, new Timestamp(System.currentTimeMillis()));
+            pstmt.setString(12, tokenConfig.getAuxJson());
 
             pstmt.executeUpdate();
             con.commit();

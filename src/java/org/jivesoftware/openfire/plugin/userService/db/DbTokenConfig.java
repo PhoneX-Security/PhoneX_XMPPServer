@@ -8,6 +8,7 @@ public class DbTokenConfig {
     public static final String TABLE_NAME = "ofPushTokenApple";
     public static final String FIELD_USER = "ofUser";
     public static final String FIELD_RESOURCE = "ofResource";
+    public static final String FIELD_PLATFORM = "ofPlatform";
     public static final String FIELD_TOKEN = "ofDeviceToken";
     public static final String FIELD_FAKE_UDID = "ofFakeUdid";
     public static final String FIELD_VERSION = "ofVersion";

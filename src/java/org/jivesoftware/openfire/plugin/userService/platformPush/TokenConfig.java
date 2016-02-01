@@ -1,6 +1,7 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush;
 
 import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
+import org.jivesoftware.util.StringUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -22,6 +23,9 @@ import java.util.ArrayList;
  * Created by dusanklinec on 03.07.15.
  */
 public class TokenConfig {
+    public static final String PLATFORM_IOS = "ios";
+    public static final String PLATFORM_ANDROID = "android";
+
     final static String FIELD_PLATFORM   = "platform";
     final static String FIELD_TOKEN      = "token";
     final static String FIELD_FAKE_UDID  = "fudid";
@@ -61,6 +65,16 @@ public class TokenConfig {
         toRet.platform = json.getString(FIELD_PLATFORM);
         if (toRet.platform == null || toRet.platform.isEmpty()){
             return null;
+        }
+
+        final String tmpPlatform = toRet.platform.trim();
+        if (PLATFORM_IOS.equalsIgnoreCase(tmpPlatform)){
+            toRet.platform = PLATFORM_IOS;
+        } else if (PLATFORM_ANDROID.equalsIgnoreCase(tmpPlatform)){
+            toRet.platform = PLATFORM_ANDROID;
+        } else {
+            // Legacy reasons, default platform is ios. Deprecated.
+            toRet.platform = PLATFORM_IOS;
         }
 
         toRet.token      = json.getString(FIELD_TOKEN);
@@ -167,6 +181,18 @@ public class TokenConfig {
         result = 31 * result + (langs != null ? langs.hashCode() : 0);
         result = 31 * result + (debug != null ? debug.hashCode() : 0);
         return result;
+    }
+
+    public boolean isIos(){
+        if (platform==null || platform.isEmpty()){
+            platform = PLATFORM_IOS;
+        }
+
+        return PLATFORM_IOS.equals(platform);
+    }
+
+    public boolean isAndroid(){
+        return PLATFORM_ANDROID.equals(platform);
     }
 
     public String getPlatform() {

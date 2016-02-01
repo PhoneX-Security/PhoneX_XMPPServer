@@ -422,12 +422,12 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     }
 
                     // TODO: In order to support multi-device setup, adapt same delivery mechanism
-                    // TODO: like we have in normal push messages, addressing by resource ID,
-                    // TODO: routing messages via tokens tied to resource IDs.
+                    // TODO:   like we have in normal push messages, addressing by resource ID,
+                    // TODO:   routing messages via tokens tied to resource IDs.
                     // TODO: On ACK receipt, create a delivery record and for next push request do not deliver the same message
-                    // TODO: to the given resource which ACKed the message. Still can be delivered to another devices/tokens/resources
-                    // TODO: from the same user which do not ACK message. Rethink the concept. If Acked on some device, maybe
-                    // TODO: we want to consider it ACKed on all devices as the same user does it.
+                    // TODO:   to the given resource which ACKed the message. Still can be delivered to another devices/tokens/resources
+                    // TODO:   from the same user which do not ACK message. Rethink the concept. If Acked on some device, maybe
+                    // TODO:   we want to consider it ACKed on all devices as the same user does it.
 
                     // Persisting to the database + protection against flooding / errors. Keeps last 100 records
                     // for user-action pairs.
@@ -574,24 +574,29 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     builder.buildForToken(token);
                     final String payload = builder.getPayload();
 
-                    int now = (int)(new Date().getTime()/1000);
+                    final int now = (int)(new Date().getTime()/1000);
                     // TODO: when expiration is correctly implemented for expiring notifications, fix this.
                     // TODO: Expiration is useful for active call. After call is expired, new push notification without call
 
-                    EnhancedApnsNotification notification = new EnhancedApnsNotification(
-                            INCREMENT_ID() /* Next ID */,
-                            now + 60 * 60 * 24 * 30 /* Expire in 30 days */,
-                            token.getToken() /* Device Token */,
-                            payload);
+                    // Apple token:
+                    if (token.isIos()) {
+                        EnhancedApnsNotification notification = new EnhancedApnsNotification(
+                                INCREMENT_ID() /* Next ID */,
+                                now + 60 * 60 * 24 * 30 /* Expire in 30 days */,
+                                token.getToken() /* Device Token */,
+                                payload);
 
-                    if (token.getDebug()){
-                        log.info(String.format("Broadcasting devel push message, to: %s, payload: %s", token.getUser(), payload));
-                        apnSvcDevel.push(notification);
+                        if (token.getDebug()) {
+                            log.info(String.format("Broadcasting devel push message, to: %s, payload: %s", token.getUser(), payload));
+                            apnSvcDevel.push(notification);
 
-                    } else {
-                        log.info(String.format("Broadcasting production push message, to: %s, payload: %s", token.getUser(), payload));
-                        apnSvcProd.push(notification);
+                        } else {
+                            log.info(String.format("Broadcasting production push message, to: %s, payload: %s", token.getUser(), payload));
+                            apnSvcProd.push(notification);
 
+                        }
+                    } else if (token.isAndroid()){
+                        // TODO: process android token.
                     }
                 }
 

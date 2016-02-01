@@ -35,7 +35,8 @@ CREATE TABLE ofPushDelivery (
 CREATE TABLE ofPushTokenApple (
 	ofUser        VARCHAR(255) NOT NULL,
 	ofResource    VARCHAR(255) NOT NULL,
-	ofDeviceToken VARCHAR(128) NOT NULL,
+	ofPlatform    VARCHAR(16)  NOT NULL,
+	ofDeviceToken VARCHAR(255) NOT NULL,
 	ofFakeUdid    VARCHAR(128) NOT NULL,
 	ofVersion     VARCHAR(32)  NULL,
 	ofAppVersion  VARCHAR(32)  NULL,
