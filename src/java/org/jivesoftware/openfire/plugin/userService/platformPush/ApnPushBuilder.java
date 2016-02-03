@@ -84,6 +84,9 @@ public class ApnPushBuilder {
      * Grouping, processing of the input messages.
      */
     protected void preprocess(){
+        // Reset old badges count.
+        totalBadge = 0;
+        actionBadge.clear();
         for(DbPlatformPush ppush : pushMessagesList){
             final String action = ppush.getAction();
             List<DbPlatformPush> lstToUse = null;
