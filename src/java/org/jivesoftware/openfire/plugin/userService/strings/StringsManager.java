@@ -77,15 +77,17 @@ public class StringsManager {
     public DbStrings loadString(String key, List<Locale> locales, PluralFormsEnum pluralForm){
         final List<DbStrings> strings = new ArrayList<DbStrings>();
         final List<Locale> realLocales = fixupLocales(locales, true);
-        final Set<String> localeString = new HashSet<String>();
+        final Set<String> localeStringSet = new HashSet<String>();
+        final List<String> localeString = new ArrayList<String>(realLocales.size());
         for (Locale l : realLocales){
+            localeStringSet.add(l.getLanguage());
             localeString.add(l.getLanguage());
         }
 
         Connection con = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
-        final int cnt = localeString.size();
+        final int cnt = localeStringSet.size();
         final String query = String.format(SQL_FETCH_STRINGS, DbEntityManager.genPlaceholders(cnt));
         try {
             con = DbConnectionManager.getConnection();
@@ -94,7 +96,7 @@ public class StringsManager {
 
             pstmt.setString(++ctr, key);
             pstmt.setString(++ctr, pluralForm.toString());
-            for (String lcl : localeString) {
+            for (String lcl : localeStringSet) {
                 pstmt.setString(++ctr, lcl);
             }
 
@@ -111,7 +113,7 @@ public class StringsManager {
         }
         catch (SQLException e) {
             log.error(String.format("Exception: %s, cnt: %s, locales: %s, query: %s",
-                    e.getMessage(), cnt, localeString, query), e);
+                    e.getMessage(), cnt, localeStringSet, query), e);
         }
         finally {
             DbConnectionManager.closeConnection(rs, pstmt, con);
