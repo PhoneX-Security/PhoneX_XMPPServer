@@ -154,4 +154,34 @@ public class MiscUtils {
 
         return toret;
     }
+
+    public static boolean isEmpty(String a){
+        return a == null || a.isEmpty();
+    }
+
+    public static String substring(String src, int from, int len){
+        if (src == null){
+            return null;
+        }
+
+        final int srcLen = src.length();
+        final int newLen = from+len > srcLen ? srcLen-from : len;
+
+        return src.substring(from, newLen);
+    }
+
+    static <T> T nonNull(T argument) {
+        if (argument == null) {
+            throw new IllegalArgumentException("argument cannot be null");
+        }
+        return argument;
+    }
+
+    void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
 }

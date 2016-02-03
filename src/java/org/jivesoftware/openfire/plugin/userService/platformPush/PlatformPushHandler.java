@@ -1,5 +1,6 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush;
 
+import com.google.android.gcm.server.Message;
 import com.notnoop.apns.APNS;
 import com.notnoop.apns.ApnsService;
 import com.notnoop.apns.EnhancedApnsNotification;
@@ -13,20 +14,21 @@ import org.jivesoftware.openfire.handler.IQHandler;
 import org.jivesoftware.openfire.plugin.UserServicePlugin;
 import org.jivesoftware.openfire.plugin.userService.Job;
 import org.jivesoftware.openfire.plugin.userService.JobRunnable;
-import org.jivesoftware.openfire.plugin.userService.clientState.ActivityRecord;
 import org.jivesoftware.openfire.plugin.userService.clientState.ClientStateService;
 import org.jivesoftware.openfire.plugin.userService.db.DbEntityManager;
 import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
+import org.jivesoftware.openfire.plugin.userService.platformPush.gcm.GcmSendRecord;
+import org.jivesoftware.openfire.plugin.userService.platformPush.gcm.GcmSender;
 import org.jivesoftware.openfire.plugin.userService.platformPush.ackMessage.PushAck;
 import org.jivesoftware.openfire.plugin.userService.platformPush.iq.PushMessageAckIq;
 import org.jivesoftware.openfire.plugin.userService.platformPush.iq.PushMessageReqIq;
 import org.jivesoftware.openfire.plugin.userService.platformPush.iq.PushTokenUpdateIq;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.PushRequest;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.PushRequestMessage;
-import org.jivesoftware.openfire.plugin.userService.push.events.*;
+import org.jivesoftware.openfire.plugin.userService.push.AckMergeRecord;
+import org.jivesoftware.openfire.plugin.userService.push.PushSendRecord;
 import org.jivesoftware.openfire.plugin.userService.utils.LRUCache;
 import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -35,6 +37,7 @@ import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 
 import java.util.*;
+import java.util.concurrent.PriorityBlockingQueue;
 
 import static com.notnoop.apns.EnhancedApnsNotification.*;
 
@@ -73,6 +76,12 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
      */
     private ApnFeedbackWatcher apnFeedbackWatcher;
 
+    /**
+     * Sender thread for GCM communication.
+     */
+    private GcmSender gcmSender;
+    private final PriorityBlockingQueue<GcmSendRecord> gcmQueue = new PriorityBlockingQueue<GcmSendRecord>();
+
     public PlatformPushHandler(UserServicePlugin plugin) {
         super("ClientStateService");
         this.plugin = plugin;
@@ -107,6 +116,14 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             apnSvcProd = null;
             log.error("Cannot initialize Apple push notification library", e);
         }
+
+        try {
+            gcmSender = new GcmSender(this, plugin);
+            gcmSender.start();
+
+        } catch(Exception e){
+            log.error("Exception in GCM initialization");
+        }
     }
 
     public void deinit(){
@@ -115,6 +132,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         pushMsgCleanCache.clear();
         pushMsgCleanCache.setEvictionListener(null);
         apnFeedbackWatcher.deinit();
+        gcmSender.deinit();
 
         try {
             if (apnSvcProd != null){
@@ -574,30 +592,10 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     builder.buildForToken(token);
                     final String payload = builder.getPayload();
 
-                    final int now = (int)(new Date().getTime()/1000);
                     // TODO: when expiration is correctly implemented for expiring notifications, fix this.
                     // TODO: Expiration is useful for active call. After call is expired, new push notification without call
-
-                    // Apple token:
-                    if (token.isIos()) {
-                        EnhancedApnsNotification notification = new EnhancedApnsNotification(
-                                INCREMENT_ID() /* Next ID */,
-                                now + 60 * 60 * 24 * 30 /* Expire in 30 days */,
-                                token.getToken() /* Device Token */,
-                                payload);
-
-                        if (token.getDebug()) {
-                            log.info(String.format("Broadcasting devel push message, to: %s, payload: %s", token.getUser(), payload));
-                            apnSvcDevel.push(notification);
-
-                        } else {
-                            log.info(String.format("Broadcasting production push message, to: %s, payload: %s", token.getUser(), payload));
-                            apnSvcProd.push(notification);
-
-                        }
-                    } else if (token.isAndroid()){
-                        // TODO: process android token.
-                    }
+                    // Send to a particular token, depending on the platform.
+                    sendTokenPayload(token, payload);
                 }
 
                 // Delete non-ack messages from the database.
@@ -608,6 +606,48 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             } catch (JSONException e) {
                 log.error("Exception in generating APN", e);
             }
+        }
+    }
+
+    /**
+     * Sends given payload to a
+     * @param token
+     * @param payload
+     */
+    protected void sendTokenPayload(TokenConfig token, String payload){
+        // Apple token:
+        if (token.isIos()) {
+            final int now = (int)(new Date().getTime()/1000);
+            final EnhancedApnsNotification notification = new EnhancedApnsNotification(
+                    INCREMENT_ID() /* Next ID */,
+                    now + 60 * 60 * 24 * 30 /* Expire in 30 days */,
+                    token.getToken() /* Device Token */,
+                    payload);
+
+            if (token.getDebug()) {
+                log.info(String.format("Broadcasting devel push message, to: %s, payload: %s", token.getUser(), payload));
+                apnSvcDevel.push(notification);
+
+            } else {
+                log.info(String.format("Broadcasting production push message, to: %s, payload: %s", token.getUser(), payload));
+                apnSvcProd.push(notification);
+
+            }
+
+        } else if (token.isAndroid()){
+            final Message.Builder gcmMsgBuilder = new Message.Builder();
+            gcmMsgBuilder.contentAvailable(true);
+            gcmMsgBuilder.timeToLive(60 * 60 * 24 * 30);
+            gcmMsgBuilder.restrictedPackageName("net.phonex");
+            gcmMsgBuilder.addData("phxroot", payload);
+            final Message gcmMsg = gcmMsgBuilder.build();
+
+            GcmSendRecord sndRec = new GcmSendRecord();
+            sndRec.setTo(token.getToken());
+            sndRec.setPushMsg(gcmMsg);
+
+            log.info(String.format("Broadcasting GCM push message, to: %s, payload: %s", token.getUser(), payload));
+            addSendRecord(sndRec, true);
         }
     }
 
@@ -873,24 +913,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             final List<TokenConfig> tokenList = DbEntityManager.loadTokens(Collections.singletonList(toUser));
             for(TokenConfig curToken : tokenList) {
                 try {
-                    int now = (int) (new Date().getTime() / 1000);
-                    String payload = pushMsg.toString();
-
-                    EnhancedApnsNotification notification = new EnhancedApnsNotification(
-                            INCREMENT_ID() /* Next ID */,
-                            now + 60 * 60 * 24 * 30 /* Expire in 30 days */,
-                            curToken.getToken() /* Device Token */,
-                            payload);
-
-                    if (curToken.getDebug()) {
-                        log.info(String.format("Broadcasting devel push message, to: %s, payload: %s", curToken.getUser(), payload));
-                        apnSvcDevel.push(notification);
-
-                    } else {
-                        log.info(String.format("Broadcasting production push message, to: %s, payload: %s", curToken.getUser(), payload));
-                        apnSvcProd.push(notification);
-
-                    }
+                    sendTokenPayload(curToken, pushMsg.toString());
                 } catch (Exception ex) {
                     log.error("Exception in sending a push to particular token", ex);
                 }
@@ -918,5 +941,31 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         } catch(Exception e){
             log.error("Exception in push request from queue handling", e);
         }
+    }
+
+    /**
+     * Main entry to submit new push notifications to the queue.
+     * Try to merge with existing waiting message to save space / messages / bandwidth.
+     * @param sndRec
+     * @param tryMerge
+     */
+    public void addSendRecord(GcmSendRecord sndRec, boolean tryMerge) {
+        gcmQueue.add(sndRec);
+    }
+
+    /**
+     * Called by sender when GCM sending failed.
+     * @param sndRec
+     */
+    public void onGcmSendFailed(GcmSendRecord sndRec){
+        log.info("GCM sending failed for " + sndRec);
+
+        // TODO: mark all messages related to this sending record as not sent - in a thread safe way.
+        // TODO    Beware of multiple push messages carrying subsets of push requests. If one fails another can succeed
+        // TODO    thus take care if some message is not already ACKed. => Store positive ACKs. None ack = no delivery.
+    }
+
+    public PriorityBlockingQueue<GcmSendRecord> getGcmQueue() {
+        return gcmQueue;
     }
 }
