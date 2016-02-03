@@ -27,8 +27,8 @@ public class StringsManager {
     private static final long STRING_CACHE_TTL_MILLI = 1000*10;
     private static final String SQL_FETCH_STRINGS = String.format(
             "SELECT * FROM `%s` WHERE %s=? " +
-                    "AND %s=?" +
-                    "AND %s IN %%s",
+                    "AND %s=? " +
+                    "AND %s IN (%%s)",
             DbStrings.TABLE_NAME,
             DbStrings.FIELD_KEY,
             DbStrings.FIELD_PLURAL_TYPE,
@@ -77,7 +77,7 @@ public class StringsManager {
     public DbStrings loadString(String key, List<Locale> locales, PluralFormsEnum pluralForm){
         final List<DbStrings> strings = new ArrayList<DbStrings>();
         final List<Locale> realLocales = fixupLocales(locales, true);
-        final ArrayList<String> localeString = new ArrayList<String>();
+        final Set<String> localeString = new HashSet<String>();
         for (Locale l : realLocales){
             localeString.add(l.getLanguage());
         }
@@ -85,7 +85,7 @@ public class StringsManager {
         Connection con = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
-        final int cnt = realLocales.size();
+        final int cnt = localeString.size();
         final String query = String.format(SQL_FETCH_STRINGS, DbEntityManager.genPlaceholders(cnt));
         try {
             con = DbConnectionManager.getConnection();
@@ -110,7 +110,8 @@ public class StringsManager {
             }
         }
         catch (SQLException e) {
-            log.error(String.format("Exception: %s, cnt: %s, ", e.getMessage()), e);
+            log.error(String.format("Exception: %s, cnt: %s, locales: %s, query: %s",
+                    e.getMessage(), cnt, localeString, query), e);
         }
         finally {
             DbConnectionManager.closeConnection(rs, pstmt, con);
