@@ -579,7 +579,8 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             final List<TokenConfig> tokens = tokenDatabase.get(user);
 
             ApnPushBuilder builder = new ApnPushBuilder();
-            builder.setUser(user)
+            builder.setStrings(plugin.getStrings())
+                    .setUser(user)
                     .setTokens(tokens)
                     .setPushMessagesList(list);
 

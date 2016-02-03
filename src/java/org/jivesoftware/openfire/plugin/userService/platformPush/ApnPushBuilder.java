@@ -2,9 +2,11 @@ package org.jivesoftware.openfire.plugin.userService.platformPush;
 
 import com.notnoop.apns.APNS;
 import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
+import org.jivesoftware.openfire.plugin.userService.db.DbStrings;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessage;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessageBuilder;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.*;
+import org.jivesoftware.openfire.plugin.userService.strings.StringsManager;
 import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -12,10 +14,7 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Builder for payload building for the Apple push notifications.
@@ -77,6 +76,9 @@ public class ApnPushBuilder {
 
     protected String phxPushPayload;
     protected JSONObject jsonPhxPushPayload;
+
+    protected TokenConfig currentToken;
+    protected StringsManager strings;
 
     /**
      * Grouping, processing of the input messages.
@@ -160,8 +162,19 @@ public class ApnPushBuilder {
      * BBuilds string description
      */
     public void buildAlertString(){
-        // TODO: implement.
+        // TODO: implement title from the message content (missed call, new message, ...?)
         alertString = "New activity on PhoneX";
+        if (currentToken == null || strings == null){
+            return;
+        }
+
+        final List<Locale> locales = StringsManager.getLocales(currentToken.getLangs());
+        final DbStrings newActivityString = strings.loadStringCached("PUSH_NEW_ACTIVITY", locales);
+        if (newActivityString == null){
+            return;
+        }
+
+        alertString = newActivityString.getValue();
     }
 
     public void build() throws JSONException {
@@ -172,6 +185,8 @@ public class ApnPushBuilder {
      * Build apple push.
      */
     public void buildForToken(TokenConfig token) throws JSONException {
+        currentToken = token;
+
         // Group, categorize, compute priorities.
         preprocess();
 
@@ -271,5 +286,14 @@ public class ApnPushBuilder {
 
     public JSONObject getJsonPhxPushPayload() {
         return jsonPhxPushPayload;
+    }
+
+    public StringsManager getStrings() {
+        return strings;
+    }
+
+    public ApnPushBuilder setStrings(StringsManager strings) {
+        this.strings = strings;
+        return this;
     }
 }

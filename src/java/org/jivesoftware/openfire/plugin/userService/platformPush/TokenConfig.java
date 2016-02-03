@@ -132,7 +132,7 @@ public class TokenConfig {
                 continue;
             }
 
-            langs.add(part);
+            langs.add(part.trim());
         }
     }
 

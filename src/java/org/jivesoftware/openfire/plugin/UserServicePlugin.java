@@ -45,6 +45,7 @@ import org.jivesoftware.openfire.plugin.userService.platformPush.PlatformPushHan
 import org.jivesoftware.openfire.plugin.userService.push.PushRunnable;
 import org.jivesoftware.openfire.plugin.userService.push.PushService;
 import org.jivesoftware.openfire.plugin.userService.roster.TransferRosterItem;
+import org.jivesoftware.openfire.plugin.userService.strings.StringsManager;
 import org.jivesoftware.openfire.plugin.userService.utils.JobLogger;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
@@ -95,6 +96,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
     private PushService pushSvc;
     private ClientStateService cstateSvc;
     private PlatformPushHandler pPushSvc;
+    private StringsManager strings;
     private TaskExecutor executor;
 
     private String secret;
@@ -136,6 +138,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         pushSvc = new PushService(this);
         cstateSvc = new ClientStateService(this);
         pPushSvc = new PlatformPushHandler(this);
+        strings = new StringsManager();
         executor = new TaskExecutor(this);
         executor.start();
 
@@ -159,6 +162,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         pushSvc.init();
         cstateSvc.init();
         pPushSvc.init();
+        strings.init();
 
         // Start AMQP listener
         amqpListener = new AMQPListener();
@@ -189,6 +193,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
         cstateSvc.deinit();
         pPushSvc.deinit();
         executor.deinit();
+        strings.deinit();
 
         // Stop listening to system property events
         PropertyEventDispatcher.removeListener(this);
@@ -1375,5 +1380,9 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
 
     public PlatformPushHandler getpPushSvc() {
         return pPushSvc;
+    }
+
+    public StringsManager getStrings() {
+        return strings;
     }
 }

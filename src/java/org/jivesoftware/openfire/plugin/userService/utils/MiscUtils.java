@@ -159,6 +159,10 @@ public class MiscUtils {
         return a == null || a.isEmpty();
     }
 
+    public static boolean isEmpty(Collection a){
+        return a == null || a.isEmpty();
+    }
+
     public static String substring(String src, int from, int len){
         if (src == null){
             return null;

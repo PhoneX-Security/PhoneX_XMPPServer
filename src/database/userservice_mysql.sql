@@ -78,7 +78,7 @@ CREATE TABLE ofPhxPlatformMessages (
    PRIMARY KEY (ofMsgId)
 ) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
 
-CREATE TABLE  `opensips_fire`.`ofPhxPushLocalization` (
+CREATE TABLE  `ofPhxPushLocalization` (
    `id` BIGINT NOT NULL ,
    `ofStringKey` VARCHAR( 64 ) NOT NULL ,
    `ofLangCode` VARCHAR( 6 ) NOT NULL DEFAULT  'en',
@@ -87,3 +87,16 @@ CREATE TABLE  `opensips_fire`.`ofPhxPushLocalization` (
    PRIMARY KEY (`id`) ,
    INDEX (`ofStringKey`)
 ) ENGINE=INNODB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `ofPhxStrings` (
+  `id` bigint(20) NOT NULL auto_increment,
+  `ofDateCreated` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+  `ofStringKey` varchar(255) NOT NULL,
+  `ofStringLocale` varchar(16) NOT NULL,
+  `ofPluralType` ENUM(  'none',  'zero',  'one',  'two',  'few',  'many',  'other' ) NOT NULL DEFAULT  'none',
+  `ofTranslatable` tinyint(4) NOT NULL,
+  `ofStringValue` text,
+  PRIMARY KEY  (`id`),
+  KEY `idxKey` (`ofStringKey`),
+  KEY `idxLocale` (`ofStringLocale`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 AUTO_INCREMENT=1;

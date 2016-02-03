@@ -24,6 +24,7 @@ import java.util.List;
  */
 public class DbEntityManager {
     private static final Logger log = LoggerFactory.getLogger(DbEntityManager.class);
+
     private static final String SQL_FETCH_MESSAGES_USR_ACTION="SELECT * FROM "+DbPushMessage.TABLE_NAME+" WHERE forUser=? AND msgAction=?";
     private static final String SQL_FETCH_MESSAGES_USR="SELECT * FROM "+DbPushMessage.TABLE_NAME+" WHERE forUser=?";
     private static final String SQL_DELETE_MESSAGES_FMT="DELETE FROM "+DbPushMessage.TABLE_NAME+" WHERE msgID IN(%s)";

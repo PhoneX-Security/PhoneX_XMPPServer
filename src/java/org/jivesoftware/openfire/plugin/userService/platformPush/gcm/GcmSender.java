@@ -111,7 +111,14 @@ public class GcmSender extends Thread {
                 try {
                     sndRec.incSendCtr();
                     sndRec.setLastSendTstamp(curTime);
-                    final Result gcmResult = gcmSender.sendNoRetry(sndRec.getPushMsg(), sndRec.getTo());
+                    Result gcmResult = null;
+
+                    // Do GCM send.
+                    try {
+                        gcmResult = gcmSender.sendNoRetry(sndRec.getPushMsg(), sndRec.getTo());
+                    } catch(Exception e){
+                        log.error("Exception in sending GCM", e);
+                    }
 
                     log.info(String.format("Packet sent, id: %s, result: %s", sndRec.getPacketId(), gcmResult));
                     if (gcmResult == null){
