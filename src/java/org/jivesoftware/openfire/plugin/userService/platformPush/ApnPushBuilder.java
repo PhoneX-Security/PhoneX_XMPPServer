@@ -223,7 +223,6 @@ public class ApnPushBuilder {
                 .badge(totalBadge)
                 .alertBody(alertString)
                 .alertTitle(alertString)
-                .actionKey("Show")
                 .build();
 
         // Parse general payload, build JSON.
