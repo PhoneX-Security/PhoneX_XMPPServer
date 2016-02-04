@@ -638,7 +638,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         } else if (token.isAndroid()){
             final Message.Builder gcmMsgBuilder = new Message.Builder();
             gcmMsgBuilder.contentAvailable(true);
-            gcmMsgBuilder.timeToLive(60 * 60 * 24 * 30);
+            gcmMsgBuilder.timeToLive(2419000); // Maximum allowed TTL
             gcmMsgBuilder.restrictedPackageName("net.phonex");
             gcmMsgBuilder.addData("phxroot", payload);
             final Message gcmMsg = gcmMsgBuilder.build();
