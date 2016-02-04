@@ -754,8 +754,8 @@ public class DbEntityManager {
                     pstmt.setLong(14, req.getAlertKey());
                 }
 
-                pstmt.setString(15, null);
-                pstmt.setString(16, null);
+                pstmt.setString(15, req.getAux1());
+                pstmt.setString(16, req.getAux2());
                 pstmt.setString(17, null);
                 pstmt.executeUpdate();
             }

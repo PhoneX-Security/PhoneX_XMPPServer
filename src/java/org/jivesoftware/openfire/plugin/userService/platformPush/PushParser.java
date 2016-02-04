@@ -48,6 +48,12 @@ public class PushParser {
         }  else if (NewOfflineMsgPush.ACTION.equals(action)){
             pm = new NewOfflineMsgPush();
 
+        }  else if (NewMessageOfflinePush.ACTION.equals(action)){
+            pm = new NewMessageOfflinePush();
+
+        }  else if (NewMissedCallOfflinePush.ACTION.equals(action)){
+            pm = new NewMissedCallOfflinePush();
+
         } else if (generic) {
             pm = new PushRequestMessage();
 
@@ -76,11 +82,17 @@ public class PushParser {
         } else if (NewAttentionMsg.ACTION.equals(action)){
             pm = new NewAttentionPush();
 
-        }  else if (NewEventMsg.ACTION.equals(action)){
+        } else if (NewEventMsg.ACTION.equals(action)){
             pm = new NewEventPush();
 
-        }  else if (NewOfflineMsg.ACTION.equals(action)){
+        } else if (NewOfflineMsg.ACTION.equals(action)){
             pm = new NewOfflineMsgPush();
+
+        } else if (NewMessageOfflineMsg.ACTION.equals(action)){
+            pm = new NewMessageOfflinePush();
+
+        } else if (NewMissedCallOfflineMsg.ACTION.equals(action)){
+            pm = new NewMissedCallOfflinePush();
 
         } else if (generic) {
             pm = new PushRequestMessage();

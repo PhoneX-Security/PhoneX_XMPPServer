@@ -5,6 +5,7 @@ import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
 import org.jivesoftware.openfire.plugin.userService.db.DbStrings;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessage;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessageBuilder;
+import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.NewMissedCallOfflineMsg;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.*;
 import org.jivesoftware.openfire.plugin.userService.strings.StringsManager;
 import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
@@ -130,12 +131,16 @@ public class ApnPushBuilder {
      * Attempts to construct alert string key from all messages in the current push bulk.
      */
     public void buildAlertStringKey(){
-        boolean newMsg    = actionPush.containsKey(NewMissedCallPush.ACTION);
-        boolean newMissed = actionPush.containsKey(NewMessagePush.ACTION);
+        boolean newMsg    = actionPush.containsKey(NewMessagePush.ACTION);
+        boolean newMissed = actionPush.containsKey(NewMissedCallPush.ACTION);
         boolean newCall   = actionPush.containsKey(NewActiveCallPush.ACTION);
         boolean newEvent  = actionPush.containsKey(NewEventPush.ACTION);
         boolean newAttention = actionPush.containsKey(NewAttentionPush.ACTION);
         boolean newOffline = actionPush.containsKey(NewOfflineMsgPush.ACTION);
+
+        // Offline events.
+        newMissed |= actionPush.containsKey(NewMissedCallOfflinePush.ACTION);
+        newMsg    |= actionPush.containsKey(NewMessageOfflinePush.ACTION);
 
         int alertIdx = newMsg       ? 1 : 0;
         alertIdx    |= newMissed    ? 1 << 1: 0;

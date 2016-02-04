@@ -110,6 +110,12 @@ public class PushRequestMessage {
      */
     protected Long messageId;
 
+    /**
+     * Aux fields for packing subclass data.
+     */
+    protected String aux1;
+    protected String aux2;
+
     public PushRequestMessage() {
     }
 
@@ -315,5 +321,21 @@ public class PushRequestMessage {
 
     public void setTstamp(long tstamp) {
         this.tstamp = tstamp;
+    }
+
+    public String getAux1() {
+        return aux1;
+    }
+
+    public void setAux1(String aux1) {
+        this.aux1 = aux1;
+    }
+
+    public String getAux2() {
+        return aux2;
+    }
+
+    public void setAux2(String aux2) {
+        this.aux2 = aux2;
     }
 }

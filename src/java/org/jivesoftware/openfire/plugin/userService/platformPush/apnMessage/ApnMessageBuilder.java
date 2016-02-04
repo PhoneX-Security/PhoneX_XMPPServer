@@ -41,6 +41,12 @@ public class ApnMessageBuilder {
         } else if (NewOfflineMsgPush.ACTION.equals(action)){
             ab = new NewOfflineMsg();
 
+        } else if (NewMessageOfflinePush.ACTION.equals(action)){
+            ab = new NewMessageOfflineMsg();
+
+        } else if (NewMissedCallOfflinePush.ACTION.equals(action)){
+            ab = new NewMissedCallOfflineMsg();
+
         } else if (allowGeneric){
             log.warn("Using generic APN message for: %s", action);
             ab = new ApnMessageBase();

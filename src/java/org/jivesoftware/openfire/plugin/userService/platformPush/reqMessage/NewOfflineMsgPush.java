@@ -10,6 +10,9 @@ import org.json.JSONObject;
  */
 public class NewOfflineMsgPush extends PushRequestMessage {
     public static final String ACTION = "newOfflineMsg";
+    public static final String FIELD_MESSAGE_TYPE = "mtype";
+
+    protected String offlineMessageType;
 
     public NewOfflineMsgPush() {
     }
@@ -46,5 +49,30 @@ public class NewOfflineMsgPush extends PushRequestMessage {
     @Override
     public String getAlertStringKey() {
         return "L_PHX_PUSH_NEW_OFFLINE_MESSAGE";
+    }
+
+    @Override
+    public void parserFromJson(JSONObject json) throws JSONException {
+        super.parserFromJson(json);
+
+        if (json.has(FIELD_MESSAGE_TYPE)){
+            setOfflineMessageType(json.getString(FIELD_MESSAGE_TYPE));
+        }
+    }
+
+    public String getOfflineMessageType() {
+        return offlineMessageType;
+    }
+
+    public void setOfflineMessageType(String messageType) {
+        this.offlineMessageType = messageType;
+        this.aux1 = messageType;
+    }
+
+    @Override
+    public String toString() {
+        return "NewOfflineMsgPush{" +
+                "offlineMessageType='" + offlineMessageType + '\'' +
+                "} " + super.toString();
     }
 }
