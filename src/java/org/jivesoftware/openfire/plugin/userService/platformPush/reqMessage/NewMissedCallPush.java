@@ -1,5 +1,7 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage;
 
+import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessageBase;
+import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.NewMissedCallMsg;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -16,6 +18,11 @@ public class NewMissedCallPush extends PushRequestMessage {
 
     public NewMissedCallPush(JSONObject json) throws JSONException {
         super(json);
+    }
+
+    @Override
+    public ApnMessageBase getApnMessage(boolean allowGeneric) {
+        return new NewMissedCallMsg();
     }
 
     @Override

@@ -12,6 +12,10 @@ import org.slf4j.LoggerFactory;
 import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Simple parser for JSON encoded push message requests for APN.
  * Request is sent from device to the XMPP server in order to request Apple push notification delivery to another device.
@@ -22,6 +26,25 @@ public class PushParser {
     private static final Logger log = LoggerFactory.getLogger(PushParser.class);
 
     /**
+     * All registered messages.
+     */
+    protected static final Map<String, PushRequestMessage> pushMessages = new HashMap<String, PushRequestMessage>();
+    static {
+        pushMessages.put(NewMessagePush.ACTION,         new NewMessagePush());
+        pushMessages.put(NewMissedCallPush.ACTION,      new NewMissedCallPush());
+        pushMessages.put(NewActiveCallPush.ACTION,      new NewActiveCallPush());
+        pushMessages.put(NewAttentionPush.ACTION,       new NewAttentionPush());
+        pushMessages.put(NewEventPush.ACTION,           new NewEventPush());
+        pushMessages.put(NewOfflineMsgPush.ACTION,      new NewOfflineMsgPush());
+        pushMessages.put(NewMessageOfflinePush.ACTION,  new NewMessageOfflinePush());
+        pushMessages.put(NewMissedCallOfflinePush.ACTION, new NewMissedCallOfflinePush());
+    }
+
+    public static Map<String, PushRequestMessage> getPushMessages(){
+        return Collections.unmodifiableMap(pushMessages);
+    }
+
+    /**
      * Creates a new instance of the message by its action.
      * @param action action string identifying message object.
      * @param generic if false and message is not recognized, null is returned. If true and message is not recognized,
@@ -29,34 +52,9 @@ public class PushParser {
      * @return PushRequestMessage or child of PushRequestMessage.
      */
     public static PushRequestMessage getMessageByAction(String action, boolean generic){
-        PushRequestMessage pm = null;
-        if (NewMessagePush.ACTION.equals(action)){
-            pm = new NewMessagePush();
-
-        } else if (NewMissedCallPush.ACTION.equals(action)){
-            pm = new NewMissedCallPush();
-
-        } else if (NewActiveCallPush.ACTION.equals(action)){
-            pm = new NewActiveCallPush();
-
-        }  else if (NewAttentionPush.ACTION.equals(action)){
-            pm = new NewAttentionPush();
-
-        }  else if (NewEventPush.ACTION.equals(action)){
-            pm = new NewEventPush();
-
-        }  else if (NewOfflineMsgPush.ACTION.equals(action)){
-            pm = new NewOfflineMsgPush();
-
-        }  else if (NewMessageOfflinePush.ACTION.equals(action)){
-            pm = new NewMessageOfflinePush();
-
-        }  else if (NewMissedCallOfflinePush.ACTION.equals(action)){
-            pm = new NewMissedCallOfflinePush();
-
-        } else if (generic) {
+        PushRequestMessage pm = action == null ? null : pushMessages.get(action);
+        if (pm == null && generic) {
             pm = new PushRequestMessage();
-
         }
 
         return pm;
@@ -70,31 +68,22 @@ public class PushParser {
      */
     public static PushRequestMessage getMessageByApnAction(String action, boolean generic){
         PushRequestMessage pm = null;
-        if (NewMessageMsg.ACTION.equals(action)){
-            pm = new NewMessagePush();
+        for (Map.Entry<String, PushRequestMessage> et : pushMessages.entrySet()) {
+            final PushRequestMessage msg = et.getValue();
+            final ApnMessageBase apnMessage = msg.getApnMessage(generic);
+            if (apnMessage != null
+                    && apnMessage.getAction() != null
+                    && apnMessage.getAction().equals(action))
+            {
+                try {
+                    pm = msg.getClass().newInstance();
+                } catch (Exception e) {
+                    log.error("Exception in creating a new instance of push message", e);
+                }
+            }
+        }
 
-        } else if (NewCallMsg.ACTION.equals(action)){
-            pm = new NewActiveCallPush();
-
-        }  else if (NewMissedCallMsg.ACTION.equals(action)){
-            pm = new NewMissedCallPush();
-
-        } else if (NewAttentionMsg.ACTION.equals(action)){
-            pm = new NewAttentionPush();
-
-        } else if (NewEventMsg.ACTION.equals(action)){
-            pm = new NewEventPush();
-
-        } else if (NewOfflineMsg.ACTION.equals(action)){
-            pm = new NewOfflineMsgPush();
-
-        } else if (NewMessageOfflineMsg.ACTION.equals(action)){
-            pm = new NewMessageOfflinePush();
-
-        } else if (NewMissedCallOfflineMsg.ACTION.equals(action)){
-            pm = new NewMissedCallOfflinePush();
-
-        } else if (generic) {
+        if (pm == null && generic) {
             pm = new PushRequestMessage();
 
         }

@@ -1,5 +1,6 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage;
 
+import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessageBase;
 import org.jivesoftware.openfire.plugin.userService.utils.MiscUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -163,6 +164,14 @@ public class PushRequestMessage {
         if (json.has(FIELD_TIMESTAMP)){
             tstamp = MiscUtils.getAsLong(json, FIELD_TIMESTAMP);
         }
+    }
+
+    /**
+     * Returns a corresponding, empty, APN message instance.
+     * @return corresponding APN message.
+     */
+    public ApnMessageBase getApnMessage(boolean allowGeneric){
+        return allowGeneric ? new ApnMessageBase() : null;
     }
 
     @Override

@@ -1,5 +1,7 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage;
 
+import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessageBase;
+import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.NewEventMsg;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -18,6 +20,11 @@ public class NewEventPush  extends PushRequestMessage {
 
     public NewEventPush(JSONObject json) throws JSONException {
         super(json);
+    }
+
+    @Override
+    public ApnMessageBase getApnMessage(boolean allowGeneric) {
+        return new NewEventMsg();
     }
 
     @Override

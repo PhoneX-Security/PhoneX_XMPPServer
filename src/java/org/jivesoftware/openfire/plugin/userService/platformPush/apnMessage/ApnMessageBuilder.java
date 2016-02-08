@@ -1,6 +1,7 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage;
 
 import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
+import org.jivesoftware.openfire.plugin.userService.platformPush.PushParser;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,32 +23,13 @@ public class ApnMessageBuilder {
             return null;
         }
 
-        ApnMessageBase ab;
-        if (NewActiveCallPush.ACTION.equals(action)){
-            ab = new NewCallMsg();
+        ApnMessageBase ab = null;
+        final PushRequestMessage pushAction = PushParser.getMessageByAction(action, allowGeneric);
+        if (pushAction != null){
+            ab = pushAction.getApnMessage(allowGeneric);
+        }
 
-        } else if (NewMissedCallPush.ACTION.equals(action)){
-            ab = new NewMissedCallMsg();
-
-        } else if (NewMessagePush.ACTION.equals(action)){
-            ab = new NewMessageMsg();
-
-        } else if (NewAttentionPush.ACTION.equals(action)){
-            ab = new NewAttentionMsg();
-
-        } else if (NewEventPush.ACTION.equals(action)){
-            ab = new NewEventMsg();
-
-        } else if (NewOfflineMsgPush.ACTION.equals(action)){
-            ab = new NewOfflineMsg();
-
-        } else if (NewMessageOfflinePush.ACTION.equals(action)){
-            ab = new NewMessageOfflineMsg();
-
-        } else if (NewMissedCallOfflinePush.ACTION.equals(action)){
-            ab = new NewMissedCallOfflineMsg();
-
-        } else if (allowGeneric){
+        if (ab == null && allowGeneric){
             log.warn("Using generic APN message for: %s", action);
             ab = new ApnMessageBase();
 
