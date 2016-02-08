@@ -188,4 +188,24 @@ public class MiscUtils {
             Thread.currentThread().interrupt();
         }
     }
+
+    public static String join(Collection<String> collection, String glue){
+        if (collection == null || collection.isEmpty()){
+            return "";
+        }
+
+        final StringBuilder sb = new StringBuilder();
+        final int size = collection.size();
+        int ctr = 0;
+        for(String elem : collection){
+            sb.append(elem);
+            ctr += 1;
+
+            if (ctr < size){
+                sb.append(glue);
+            }
+        }
+
+        return sb.toString();
+    }
 }

@@ -1,5 +1,7 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage;
 
+import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
+import org.jivesoftware.openfire.plugin.userService.platformPush.MsgTimestampable;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.xmpp.packet.JID;
@@ -9,7 +11,7 @@ import javax.naming.OperationNotSupportedException;
 /**
  * Created by dusanklinec on 17.07.15.
  */
-public class ApnMessageBase implements ApnMessage {
+public class ApnMessageBase implements ApnMessage, MsgTimestampable {
     protected String action;
 
     /**
@@ -36,6 +38,11 @@ public class ApnMessageBase implements ApnMessage {
      * Badge number for this notifications (how many notifications waiting from the same action).
      */
     protected int badge = 0;
+
+    /**
+     * Source DB message this APN was constructed from.
+     */
+    protected DbPlatformPush sourceDbMessage;
 
     @Override
     public JSONObject apnToJson() throws JSONException {
@@ -100,5 +107,13 @@ public class ApnMessageBase implements ApnMessage {
     public ApnMessage setBadge(int badge) {
         this.badge = badge;
         return this;
+    }
+
+    public DbPlatformPush getSourceDbMessage() {
+        return sourceDbMessage;
+    }
+
+    public void setSourceDbMessage(DbPlatformPush sourceDbMessage) {
+        this.sourceDbMessage = sourceDbMessage;
     }
 }

@@ -12,12 +12,19 @@ import org.json.JSONObject;
  */
 public class NewMessagePush extends PushRequestMessage {
     public static final String ACTION = "newMessage";
+    private static final int PRIORITY = 110;
 
     public NewMessagePush() {
+        init();
     }
 
     public NewMessagePush(JSONObject json) throws JSONException {
         super(json);
+        init();
+    }
+
+    protected void init(){
+        priority = PRIORITY;
     }
 
     @Override
@@ -48,5 +55,10 @@ public class NewMessagePush extends PushRequestMessage {
     @Override
     public String getAlertStringKey() {
         return "L_PHX_PUSH_NEW_MESSAGE";
+    }
+
+    @Override
+    public String getAlertSummaryKey() {
+        return "L_PHX_PUSH_SUM_NEW_MESSAGE";
     }
 }

@@ -92,7 +92,7 @@ public class PushRequestMessage {
      * Priority among other push messages.
      * Affects how alert text is built.
      */
-    protected int priority;
+    protected int priority = 0;
 
     /**
      * String key for alert localization, for general purpose push notifications.
@@ -226,6 +226,17 @@ public class PushRequestMessage {
      */
     public String getAlertStringKey() {
         return "L_PHX_PUSH_ALERT";
+    }
+
+    /**
+     * Returns key for the summary in the push notification, as alert body.
+     * E.g., for new message: Totally "unread messages". If null is returned,
+     * this message won't be stated in the summary.
+     *
+     * @return
+     */
+    public String getAlertSummaryKey(){
+        return null;
     }
 
     public String getAction() {

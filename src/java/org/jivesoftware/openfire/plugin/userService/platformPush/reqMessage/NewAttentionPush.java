@@ -13,13 +13,20 @@ import org.json.JSONObject;
  */
 public class NewAttentionPush extends PushRequestMessage {
     public static final String ACTION = "newAttention";
+    private static final int PRIORITY = 20;
 
     public NewAttentionPush() {
-        requiresAck = false;
+        init();
     }
 
     public NewAttentionPush(JSONObject json) throws JSONException {
         super(json);
+        init();
+    }
+
+    protected void init(){
+        priority = PRIORITY;
+        requiresAck = false;
     }
 
     @Override

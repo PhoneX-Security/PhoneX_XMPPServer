@@ -4,6 +4,7 @@ import com.notnoop.apns.APNS;
 import org.jivesoftware.openfire.plugin.userService.db.DbPlatformPush;
 import org.jivesoftware.openfire.plugin.userService.db.DbStrings;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessage;
+import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessageBase;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.ApnMessageBuilder;
 import org.jivesoftware.openfire.plugin.userService.platformPush.apnMessage.NewMissedCallOfflineMsg;
 import org.jivesoftware.openfire.plugin.userService.platformPush.reqMessage.*;
@@ -58,19 +59,20 @@ public class ApnPushBuilder {
     protected List<DbPlatformPush> pushMessagesList;
 
     // Group messages by action.
-    protected final Map<String, List<DbPlatformPush>> actionMap = new HashMap<String, List<DbPlatformPush>>();
+    protected final Map<String, List<MsgHolder>> actionMap = new HashMap<String, List<MsgHolder>>();
     // Mapping Action -> Number of notifications in this action group.
     protected final Map<String, Integer> actionBadge = new HashMap<String, Integer>();
     // Mapping Action -> most recent notification (its timestamp) for this action.
     protected final Map<String, Long> actionTime = new HashMap<String, Long>();
     // Mapping Action -> the most recent notification (by its timestamp).
-    protected final Map<String, DbPlatformPush> actionPush = new HashMap<String, DbPlatformPush>();
+    protected final Map<String, MsgHolder> actionPush = new HashMap<String, MsgHolder>();
 
     protected String topAlert = null;
     protected int totalUrgency = PushRequestMessage.URGENCY_MIN;
     protected int totalBadge = 0;
     protected String alertStringKey;
     protected String alertString;
+    protected String alertStringBody;
 
     protected JSONObject jsonPayload;
     protected String payload;
@@ -81,6 +83,14 @@ public class ApnPushBuilder {
     protected TokenConfig currentToken;
     protected StringsManager strings;
 
+    // Alert tags
+    boolean newMsg = false;
+    boolean newMissed = false;
+    boolean newCall = false;
+    boolean newEvent = false;
+    boolean newAttention = false;
+    boolean newOffline = false;
+
     /**
      * Grouping, processing of the input messages.
      */
@@ -90,10 +100,10 @@ public class ApnPushBuilder {
         actionBadge.clear();
         for(DbPlatformPush ppush : pushMessagesList){
             final String action = ppush.getAction();
-            List<DbPlatformPush> lstToUse = null;
+            List<MsgHolder> lstToUse = null;
 
             if (!actionMap.containsKey(action)){
-                lstToUse = new ArrayList<DbPlatformPush>();
+                lstToUse = new ArrayList<MsgHolder>();
                 actionMap.put(action, lstToUse);
 
             } else {
@@ -101,7 +111,12 @@ public class ApnPushBuilder {
 
             }
 
-            lstToUse.add(ppush);
+            final MsgHolder msgHolder = new MsgHolder();
+            msgHolder.setDbPush(ppush);
+            msgHolder.setApnPush(ApnMessageBuilder.buildMessageFromDb(ppush, true));
+            msgHolder.setReqPush(PushParser.getMessageByAction(ppush.getAction(), true));
+
+            lstToUse.add(msgHolder);
 
             // Compute badge number for given action.
             Integer curNum = actionBadge.get(action);
@@ -112,7 +127,7 @@ public class ApnPushBuilder {
             Long lastTstamp = actionTime.get(action);
             if (lastTstamp == null || lastTstamp < ppush.getTime()){
                 actionTime.put(action, ppush.getTime());
-                actionPush.put(action, ppush);
+                actionPush.put(action, msgHolder);
             }
 
             // Overall urgency, maximum number.
@@ -128,19 +143,26 @@ public class ApnPushBuilder {
     }
 
     /**
-     * Attempts to construct alert string key from all messages in the current push bulk.
+     * Sets boolean alert tags according to the cached actions.
      */
-    public void buildAlertStringKey(){
-        boolean newMsg    = actionPush.containsKey(NewMessagePush.ACTION);
-        boolean newMissed = actionPush.containsKey(NewMissedCallPush.ACTION);
-        boolean newCall   = actionPush.containsKey(NewActiveCallPush.ACTION);
-        boolean newEvent  = actionPush.containsKey(NewEventPush.ACTION);
-        boolean newAttention = actionPush.containsKey(NewAttentionPush.ACTION);
-        boolean newOffline = actionPush.containsKey(NewOfflineMsgPush.ACTION);
+    public void processAlertTags(){
+        newMsg    = actionPush.containsKey(NewMessagePush.ACTION);
+        newMissed = actionPush.containsKey(NewMissedCallPush.ACTION);
+        newCall   = actionPush.containsKey(NewActiveCallPush.ACTION);
+        newEvent  = actionPush.containsKey(NewEventPush.ACTION);
+        newAttention = actionPush.containsKey(NewAttentionPush.ACTION);
+        newOffline = actionPush.containsKey(NewOfflineMsgPush.ACTION);
 
         // Offline events.
         newMissed |= actionPush.containsKey(NewMissedCallOfflinePush.ACTION);
         newMsg    |= actionPush.containsKey(NewMessageOfflinePush.ACTION);
+    }
+
+    /**
+     * Attempts to construct alert string key from all messages in the current push bulk.
+     */
+    public void buildAlertStringKey(){
+        processAlertTags();
 
         int alertIdx = newMsg       ? 1 : 0;
         alertIdx    |= newMissed    ? 1 << 1: 0;
@@ -170,19 +192,99 @@ public class ApnPushBuilder {
      * BBuilds string description
      */
     public void buildAlertString(){
-        // TODO: implement title from the message content (missed call, new message, ...?)
+        processAlertTags();
+
+        // A new list, sorted by priority and time stamp.
+        List<MsgHolder> msgsByPriority = new ArrayList<MsgHolder>(actionPush.values());
+        List<MsgHolder> msgsByTimestamp = new ArrayList<MsgHolder>(actionPush.values());
+        Collections.sort(msgsByPriority, new PushMsgPriorityComparator());
+        Collections.sort(msgsByTimestamp, new PushMsgTimestampComparator());
+
+        // Prepare default title, just in case.
+        final List<Locale> locales = StringsManager.getLocales(currentToken.getLangs());
+        buildDefaultAlertString(locales);
+
+        // Building alert tile -> default if empty list.
+        if (actionPush.isEmpty()){
+            return;
+        }
+
+        // At least one element, get the most recent one. If does not have entitlement for title
+        // presence, move to next.
+        for(MsgHolder cMsg : msgsByTimestamp){
+            if (cMsg == null
+                    || cMsg.getReqPush() == null
+                    || cMsg.getReqPush().getAlertStringKey() == null)
+            {
+                continue;
+            }
+
+            final DbStrings newActivityString = strings.loadStringCached(cMsg.getReqPush().getAlertStringKey(), locales);
+            if (newActivityString == null){
+                continue;
+            }
+
+            alertString = newActivityString.getValue();
+        }
+
+        // Build summary:
+        final DbStrings summaryString = strings.loadStringCached("PUSH_SUMMARY", locales);
+        if (summaryString == null){
+            return;
+        }
+
+        final StringBuilder sb = new StringBuilder();
+        sb.append(summaryString);
+
+        final List<String> summaryList = new LinkedList<String>();
+        for(MsgHolder cMsg : msgsByPriority){
+            if (cMsg == null
+                    || cMsg.getReqPush() == null
+                    || cMsg.getReqPush().getAlertSummaryKey() == null
+                    || cMsg.getReqPush().getAction() == null)
+            {
+                continue;
+            }
+
+            final Integer badgeCount = actionBadge.get(cMsg.getReqPush().getAction());
+            if (badgeCount == null || badgeCount == 0){
+                continue;
+            }
+
+            final DbStrings summarySubString = strings.loadStringCached(cMsg.getReqPush().getAlertSummaryKey(), locales);
+            if (summarySubString == null){
+                continue;
+            }
+
+            summaryList.add(summarySubString.getValue() + " (" + badgeCount + ")");
+        }
+
+        // If summary is empty, do not fill string "Summary:" with nothing, it looks dumb.
+        if (summaryList.isEmpty()){
+            return;
+        }
+
+        sb.append(MiscUtils.join(summaryList, ", "));
+        alertStringBody = sb.toString();
+    }
+
+    /**
+     * Default alert string for push notification.
+     * Called when more particular title & body cannot be built.
+     */
+    public void buildDefaultAlertString(List<Locale> locales){
         alertString = "New activity on PhoneX";
         if (currentToken == null || strings == null){
             return;
         }
 
-        final List<Locale> locales = StringsManager.getLocales(currentToken.getLangs());
         final DbStrings newActivityString = strings.loadStringCached("PUSH_NEW_ACTIVITY", locales);
         if (newActivityString == null){
             return;
         }
 
         alertString = newActivityString.getValue();
+        alertStringBody = newActivityString.getValue();
     }
 
     public void build() throws JSONException {
@@ -205,10 +307,9 @@ public class ApnPushBuilder {
         // Build custom JSON notification.
         JSONObject root = new JSONObject();
         JSONArray pushArr = new JSONArray();
-        for (Map.Entry<String, DbPlatformPush> eset : actionPush.entrySet()) {
+        for (Map.Entry<String, MsgHolder> eset : actionPush.entrySet()) {
             final String action = eset.getKey();
-            final DbPlatformPush nPush = eset.getValue();
-            final ApnMessage apnMessage = ApnMessageBuilder.buildMessageFromDb(nPush, true);
+            final ApnMessage apnMessage = eset.getValue().getApnPush();
             if (apnMessage == null){
                 continue;
             }
@@ -226,7 +327,7 @@ public class ApnPushBuilder {
         // Build general APN payload.
         final String tmpPayload = APNS.newPayload()
                 .badge(totalBadge)
-                .alertBody(alertString)
+                .alertBody(alertStringBody)
                 .alertTitle(alertString)
                 .build();
 
@@ -302,5 +403,86 @@ public class ApnPushBuilder {
     public ApnPushBuilder setStrings(StringsManager strings) {
         this.strings = strings;
         return this;
+    }
+
+    /**
+     * Holds all representation of the message for better manipulation.
+     */
+    private static class MsgHolder implements MsgPrioritable, MsgTimestampable {
+        private DbPlatformPush dbPush;
+        private ApnMessage apnPush;
+        private PushRequestMessage reqPush;
+
+        @Override
+        public int getPriority() {
+            if (reqPush != null){
+                return reqPush.getPriority();
+            }
+            if (dbPush != null){
+                return dbPush.getPriority();
+            }
+
+            return 0;
+        }
+
+        @Override
+        public long getTimestamp() {
+            if (apnPush != null){
+                return apnPush.getTimestamp();
+            }
+            if (dbPush != null){
+                return dbPush.getTime();
+            }
+            if (reqPush != null){
+                return reqPush.getTstamp();
+            }
+
+            return 0;
+        }
+
+        public DbPlatformPush getDbPush() {
+            return dbPush;
+        }
+
+        public void setDbPush(DbPlatformPush dbPush) {
+            this.dbPush = dbPush;
+        }
+
+        public ApnMessage getApnPush() {
+            return apnPush;
+        }
+
+        public void setApnPush(ApnMessage apnPush) {
+            this.apnPush = apnPush;
+        }
+
+        public PushRequestMessage getReqPush() {
+            return reqPush;
+        }
+
+        public void setReqPush(PushRequestMessage reqPush) {
+            this.reqPush = reqPush;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            MsgHolder msgHolder = (MsgHolder) o;
+
+            if (dbPush != null ? !dbPush.equals(msgHolder.dbPush) : msgHolder.dbPush != null) return false;
+            if (apnPush != null ? !apnPush.equals(msgHolder.apnPush) : msgHolder.apnPush != null) return false;
+            return !(reqPush != null ? !reqPush.equals(msgHolder.reqPush) : msgHolder.reqPush != null);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = dbPush != null ? dbPush.hashCode() : 0;
+            result = 31 * result + (apnPush != null ? apnPush.hashCode() : 0);
+            result = 31 * result + (reqPush != null ? reqPush.hashCode() : 0);
+            return result;
+        }
     }
 }

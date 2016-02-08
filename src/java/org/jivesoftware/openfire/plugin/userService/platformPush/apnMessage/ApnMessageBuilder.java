@@ -24,9 +24,9 @@ public class ApnMessageBuilder {
         }
 
         ApnMessageBase ab = null;
-        final PushRequestMessage pushAction = PushParser.getMessageByAction(action, allowGeneric);
-        if (pushAction != null){
-            ab = pushAction.getApnMessage(allowGeneric);
+        final PushRequestMessage pushMsg = PushParser.getMessageByAction(action, allowGeneric);
+        if (pushMsg != null){
+            ab = pushMsg.getApnMessage(allowGeneric);
         }
 
         if (ab == null && allowGeneric){
@@ -41,6 +41,7 @@ public class ApnMessageBuilder {
 
         ab.setAction(ppush.getAction());
         ab.setTimestamp(ppush.getTime());
+        ab.setSourceDbMessage(ppush);
 
         Long expiration = ppush.getExpiration();
         if (expiration != null){

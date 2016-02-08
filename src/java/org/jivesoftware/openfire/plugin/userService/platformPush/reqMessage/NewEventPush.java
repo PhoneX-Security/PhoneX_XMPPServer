@@ -13,18 +13,25 @@ import org.json.JSONObject;
  */
 public class NewEventPush  extends PushRequestMessage {
     public static final String ACTION = "newEvent";
+    private static final int PRIORITY = 30;
 
     public NewEventPush() {
-        requiresAck = false;
+        init();
     }
 
     public NewEventPush(JSONObject json) throws JSONException {
         super(json);
+        init();
     }
 
     @Override
     public ApnMessageBase getApnMessage(boolean allowGeneric) {
         return new NewEventMsg();
+    }
+
+    protected void init(){
+        priority = PRIORITY;
+        requiresAck = false;
     }
 
     @Override

@@ -11,12 +11,19 @@ import org.json.JSONObject;
  */
 public class NewMissedCallOfflinePush  extends PushRequestMessage {
     public static final String ACTION = "newMissedCallOffline";
+    private static final int PRIORITY = 200;
 
     public NewMissedCallOfflinePush() {
+        init();
     }
 
     public NewMissedCallOfflinePush(JSONObject json) throws JSONException {
         super(json);
+        init();
+    }
+
+    protected void init(){
+        priority = PRIORITY;
     }
 
     @Override
@@ -47,5 +54,10 @@ public class NewMissedCallOfflinePush  extends PushRequestMessage {
     @Override
     public String getAlertStringKey() {
         return "L_PHX_PUSH_NEW_MISSED_CALL_OFFLINE";
+    }
+
+    @Override
+    public String getAlertSummaryKey() {
+        return "L_PHX_PUSH_SUM_NEW_MISSED_CALL_OFFLINE";
     }
 }

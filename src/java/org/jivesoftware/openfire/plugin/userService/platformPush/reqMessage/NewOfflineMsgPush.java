@@ -13,14 +13,21 @@ import org.json.JSONObject;
 public class NewOfflineMsgPush extends PushRequestMessage {
     public static final String ACTION = "newOfflineMsg";
     public static final String FIELD_MESSAGE_TYPE = "mtype";
+    private static final int PRIORITY = 50;
 
     protected String offlineMessageType;
 
     public NewOfflineMsgPush() {
+        init();
     }
 
     public NewOfflineMsgPush(JSONObject json) throws JSONException {
         super(json);
+        init();
+    }
+
+    protected void init(){
+        priority = PRIORITY;
     }
 
     @Override
@@ -56,6 +63,11 @@ public class NewOfflineMsgPush extends PushRequestMessage {
     @Override
     public String getAlertStringKey() {
         return "L_PHX_PUSH_NEW_OFFLINE_MESSAGE";
+    }
+
+    @Override
+    public String getAlertSummaryKey() {
+        return "L_PHX_PUSH_SUM_NEW_OFFLINE_MESSAGE";
     }
 
     @Override
