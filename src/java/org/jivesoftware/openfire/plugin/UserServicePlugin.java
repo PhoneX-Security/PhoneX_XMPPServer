@@ -1231,7 +1231,7 @@ public class UserServicePlugin implements Plugin, PropertyEventListener, AMQPMsg
             }
 
         } catch (Exception ex) {
-            log.warn("Exception in processing a new message");
+            log.warn("Exception in processing a new message", ex);
         }
     }
 

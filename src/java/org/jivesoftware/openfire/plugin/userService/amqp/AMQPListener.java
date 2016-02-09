@@ -170,7 +170,7 @@ public class AMQPListener extends BackgroundThreadService {
                 listener.acceptMessage(QUEUE_XMPP_NAME, delivery);
             }
         } catch (Exception ex) {
-            log.warn("Exception in processing a new message");
+            log.warn("Exception in processing a new message", ex);
         }
     }
 
