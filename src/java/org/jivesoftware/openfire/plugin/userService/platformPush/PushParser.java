@@ -28,20 +28,23 @@ public class PushParser {
     /**
      * All registered messages.
      */
-    protected static final Map<String, PushRequestMessage> pushMessages = new HashMap<String, PushRequestMessage>();
+    protected static final Map<String, PushRequestMessage> pushMessages;
     static {
-        pushMessages.put(NewMessagePush.ACTION,         new NewMessagePush());
-        pushMessages.put(NewMissedCallPush.ACTION,      new NewMissedCallPush());
-        pushMessages.put(NewActiveCallPush.ACTION,      new NewActiveCallPush());
-        pushMessages.put(NewAttentionPush.ACTION,       new NewAttentionPush());
-        pushMessages.put(NewEventPush.ACTION,           new NewEventPush());
-        pushMessages.put(NewOfflineMsgPush.ACTION,      new NewOfflineMsgPush());
-        pushMessages.put(NewMessageOfflinePush.ACTION,  new NewMessageOfflinePush());
-        pushMessages.put(NewMissedCallOfflinePush.ACTION, new NewMissedCallOfflinePush());
+        final Map<String, PushRequestMessage> aMap = new HashMap<String, PushRequestMessage>();
+        aMap.put(NewMessagePush.ACTION,             new NewMessagePush());
+        aMap.put(NewMissedCallPush.ACTION,          new NewMissedCallPush());
+        aMap.put(NewActiveCallPush.ACTION,          new NewActiveCallPush());
+        aMap.put(NewAttentionPush.ACTION,           new NewAttentionPush());
+        aMap.put(NewEventPush.ACTION,               new NewEventPush());
+        aMap.put(NewOfflineMsgPush.ACTION,          new NewOfflineMsgPush());
+        aMap.put(NewMessageOfflinePush.ACTION,      new NewMessageOfflinePush());
+        aMap.put(NewMissedCallOfflinePush.ACTION,   new NewMissedCallOfflinePush());
+        pushMessages = Collections.unmodifiableMap(aMap);
+        log.info("Message map initialized, size: " + pushMessages.size());
     }
 
     public static Map<String, PushRequestMessage> getPushMessages(){
-        return Collections.unmodifiableMap(pushMessages);
+        return pushMessages;
     }
 
     /**
@@ -52,7 +55,27 @@ public class PushParser {
      * @return PushRequestMessage or child of PushRequestMessage.
      */
     public static PushRequestMessage getMessageByAction(String action, boolean generic){
-        PushRequestMessage pm = action == null ? null : pushMessages.get(action);
+        if (action == null && generic){
+            return new PushRequestMessage();
+
+        } else if (action == null){
+            log.warn("Null action for push message");
+            return null;
+        }
+
+        PushRequestMessage pm = pushMessages.get(action.trim());
+        if (pm != null){
+            try {
+                pm = pm.getClass().newInstance();
+            } catch (InstantiationException e) {
+                log.error("PushMessage InstantiationException", e);
+            } catch (IllegalAccessException e) {
+                log.error("PushMessage IllegalAccessException", e);
+            }
+        } else {
+            log.warn("Push message not found for action: [" + action + "]");
+        }
+
         if (pm == null && generic) {
             pm = new PushRequestMessage();
         }

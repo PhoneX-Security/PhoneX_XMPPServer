@@ -27,14 +27,16 @@ public class ApnMessageBuilder {
         final PushRequestMessage pushMsg = PushParser.getMessageByAction(action, allowGeneric);
         if (pushMsg != null){
             ab = pushMsg.getApnMessage(allowGeneric);
+        } else {
+            log.warn("Push message not found for action: " + action);
         }
 
         if (ab == null && allowGeneric){
-            log.warn("Using generic APN message for: %s", action);
+            log.warn("Using generic APN message for: " + action);
             ab = new ApnMessageBase();
 
-        } else {
-            log.warn("Unknown APN message for: %s", action);
+        } else if (ab == null) {
+            log.warn("Unknown APN message for: " + action);
             return null;
 
         }

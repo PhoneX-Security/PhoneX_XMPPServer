@@ -221,6 +221,7 @@ public class ApnPushBuilder {
 
             final DbStrings newActivityString = strings.loadStringCached(cMsg.getReqPush().getAlertStringKey(), locales);
             if (newActivityString == null){
+                log.warn("Empty translation for " + cMsg.getReqPush().getAlertStringKey());
                 continue;
             }
 
@@ -234,7 +235,9 @@ public class ApnPushBuilder {
         }
 
         final StringBuilder sb = new StringBuilder();
-        sb.append(summaryString);
+        sb.append(alertString);
+        sb.append(". ");
+        sb.append(summaryString.getValue());
 
         final List<String> summaryList = new LinkedList<String>();
         for(MsgHolder cMsg : msgsByPriority){
@@ -311,6 +314,7 @@ public class ApnPushBuilder {
             final String action = eset.getKey();
             final ApnMessage apnMessage = eset.getValue().getApnPush();
             if (apnMessage == null){
+                log.warn("Null APN message");
                 continue;
             }
 
