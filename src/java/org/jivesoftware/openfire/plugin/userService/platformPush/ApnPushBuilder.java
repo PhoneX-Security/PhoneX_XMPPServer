@@ -226,6 +226,7 @@ public class ApnPushBuilder {
             }
 
             alertString = newActivityString.getValue();
+            break;
         }
 
         // Build summary:
@@ -487,6 +488,15 @@ public class ApnPushBuilder {
             result = 31 * result + (apnPush != null ? apnPush.hashCode() : 0);
             result = 31 * result + (reqPush != null ? reqPush.hashCode() : 0);
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return "MsgHolder{" +
+                    "dbPush=" + dbPush +
+                    ", apnPush=" + apnPush +
+                    ", reqPush=" + reqPush +
+                    '}';
         }
     }
 }

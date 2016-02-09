@@ -116,4 +116,16 @@ public class ApnMessageBase implements ApnMessage, MsgTimestampable {
     public void setSourceDbMessage(DbPlatformPush sourceDbMessage) {
         this.sourceDbMessage = sourceDbMessage;
     }
+
+    @Override
+    public String toString() {
+        return "ApnMessageBase{" +
+                "action='" + action + '\'' +
+                ", key='" + key + '\'' +
+                ", expiration=" + expiration +
+                ", timestamp=" + timestamp +
+                ", badge=" + badge +
+                ", sourceDbMessage=" + sourceDbMessage +
+                '}';
+    }
 }

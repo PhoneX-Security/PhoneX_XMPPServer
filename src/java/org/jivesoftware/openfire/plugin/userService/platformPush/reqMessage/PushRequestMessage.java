@@ -184,7 +184,15 @@ public class PushRequestMessage {
                 ", cancel=" + cancel +
                 ", unique=" + unique +
                 ", messageType=" + messageType +
+                ", urgencyType=" + urgencyType +
+                ", requiresAck=" + requiresAck +
+                ", tstamp=" + tstamp +
+                ", priority=" + priority +
+                ", alertKey=" + alertKey +
+                ", canUserRequest=" + canUserRequest +
                 ", messageId=" + messageId +
+                ", aux1='" + aux1 + '\'' +
+                ", aux2='" + aux2 + '\'' +
                 '}';
     }
 

@@ -238,4 +238,28 @@ public class DbPlatformPush {
     public void setAlertKey(Long alertKey) {
         this.alertKey = alertKey;
     }
+
+    @Override
+    public String toString() {
+        return "DbPlatformPush{" +
+                "id=" + id +
+                ", key='" + key + '\'' +
+                ", action='" + action + '\'' +
+                ", time=" + time +
+                ", expiration=" + expiration +
+                ", forUser='" + forUser + '\'' +
+                ", forResource='" + forResource + '\'' +
+                ", fromUser='" + fromUser + '\'' +
+                ", fromResource='" + fromResource + '\'' +
+                ", type=" + type +
+                ", durable=" + durable +
+                ", unique=" + unique +
+                ", ackWait=" + ackWait +
+                ", priority=" + priority +
+                ", alertKey=" + alertKey +
+                ", aux1='" + aux1 + '\'' +
+                ", aux2='" + aux2 + '\'' +
+                ", auxData='" + auxData + '\'' +
+                '}';
+    }
 }
