@@ -135,7 +135,8 @@ public class GcmSender extends Thread {
                         svc.addSendRecord(sndRec, true);
                         log.info(String.format("Packet %s re-scheduled with offset %d to %s. ResendAttempt %d",
                                 sndRec.getPacketId(), sleepTime, sndRec.getTo(), sndRec.getResendAttempt()));
-
+                    } else {
+                        svc.onGcmSendSuccess(sndRec, gcmResult);
                     }
 
                 } catch(Exception ex){

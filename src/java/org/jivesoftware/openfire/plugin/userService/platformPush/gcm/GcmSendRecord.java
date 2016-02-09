@@ -1,6 +1,7 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush.gcm;
 
 import com.google.android.gcm.server.Message;
+import org.jivesoftware.openfire.plugin.userService.platformPush.ApnPushBuilder;
 import org.jivesoftware.openfire.plugin.userService.push.iq.PushIq;
 import org.jivesoftware.openfire.plugin.userService.push.messages.SimplePushMessage;
 import org.json.JSONException;
@@ -66,6 +67,12 @@ public class GcmSendRecord implements Comparable<GcmSendRecord> {
      * Packet ID for further reference (logs).
      */
     private String packetId;
+
+    /**
+     * Builder used to build the message, contains source DB messages contained in this object, used for
+     * tracking sending state. Helps to delete non-ACK message on successful send attempt.
+     */
+    private ApnPushBuilder builder;
 
     /**
      * Simple locking object for synchronization.
@@ -213,5 +220,13 @@ public class GcmSendRecord implements Comparable<GcmSendRecord> {
 
     public void setBackoff(int backoff) {
         this.backoff = backoff;
+    }
+
+    public ApnPushBuilder getBuilder() {
+        return builder;
+    }
+
+    public void setBuilder(ApnPushBuilder builder) {
+        this.builder = builder;
     }
 }

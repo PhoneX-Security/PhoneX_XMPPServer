@@ -1,9 +1,11 @@
 package org.jivesoftware.openfire.plugin.userService.platformPush;
 
 import com.google.android.gcm.server.Message;
+import com.google.android.gcm.server.Result;
 import com.notnoop.apns.APNS;
 import com.notnoop.apns.ApnsService;
 import com.notnoop.apns.EnhancedApnsNotification;
+import com.notnoop.exceptions.NetworkIOException;
 import org.dom4j.Element;
 import org.jivesoftware.openfire.IQHandlerInfo;
 import org.jivesoftware.openfire.IQRouter;
@@ -595,8 +597,10 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
 
                     // TODO: when expiration is correctly implemented for expiring notifications, fix this.
                     // TODO: Expiration is useful for active call. After call is expired, new push notification without call
+
                     // Send to a particular token, depending on the platform.
-                    sendTokenPayload(token, payload);
+                    // TODO: add builder to the send job and remove non-ACK messages after sending succeeds.
+                    sendTokenPayload(token, payload, builder);
                 }
 
                 // Delete non-ack messages from the database.
@@ -613,9 +617,9 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
     /**
      * Sends given payload to a
      * @param token
-     * @param payload
+     * @param builder
      */
-    protected void sendTokenPayload(TokenConfig token, String payload){
+    protected void sendTokenPayload(TokenConfig token, String payload, ApnPushBuilder builder) throws JSONException {
         // Apple token:
         if (token.isIos()) {
             final int now = (int)(new Date().getTime()/1000);
@@ -625,14 +629,20 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
                     token.getToken() /* Device Token */,
                     payload);
 
-            if (token.getDebug()) {
-                log.info(String.format("Broadcasting devel push message, to: %s, payload: %s", token.getUser(), payload));
-                apnSvcDevel.push(notification);
+            try {
+                if (token.getDebug()) {
+                    log.info(String.format("Broadcasting devel push message, to: %s, payload: %s", token.getUser(), payload));
+                    apnSvcDevel.push(notification);
 
-            } else {
-                log.info(String.format("Broadcasting production push message, to: %s, payload: %s", token.getUser(), payload));
-                apnSvcProd.push(notification);
+                } else {
+                    log.info(String.format("Broadcasting production push message, to: %s, payload: %s", token.getUser(), payload));
+                    apnSvcProd.push(notification);
+                }
 
+                // TODO: delete non-ACK message as send was successful.
+            } catch(NetworkIOException e){
+                log.error("Exception in sending APN", e);
+                throw e;
             }
 
         } else if (token.isAndroid()){
@@ -646,6 +656,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             GcmSendRecord sndRec = new GcmSendRecord();
             sndRec.setTo(token.getToken());
             sndRec.setPushMsg(gcmMsg);
+            sndRec.setBuilder(builder);
 
             log.info(String.format("Broadcasting GCM push message, to: %s, payload: %s", token.getUser(), payload));
             addSendRecord(sndRec, true);
@@ -914,7 +925,7 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
             final List<TokenConfig> tokenList = DbEntityManager.loadTokens(Collections.singletonList(toUser));
             for(TokenConfig curToken : tokenList) {
                 try {
-                    sendTokenPayload(curToken, pushMsg.toString());
+                    sendTokenPayload(curToken, pushMsg.toString(), null);
                 } catch (Exception ex) {
                     log.error("Exception in sending a push to particular token", ex);
                 }
@@ -966,7 +977,14 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
         // TODO    thus take care if some message is not already ACKed. => Store positive ACKs. None ack = no delivery.
     }
 
+    public void onGcmSendSuccess(GcmSendRecord sndRec, Result gcmResult) {
+        log.info("GCM sending success");
+
+        // TODO: delete non-ack db messages.
+    }
+
     public PriorityBlockingQueue<GcmSendRecord> getGcmQueue() {
         return gcmQueue;
     }
+
 }
