@@ -146,6 +146,7 @@ public class DbEntityManager {
             tkn.setLangsField(rs.getString(DbTokenConfig.FIELD_LANGS));
             tkn.setDebug(rs.getBoolean(DbTokenConfig.FIELD_DEBUG));
             tkn.setAuxJson(rs.getString(DbTokenConfig.FIELD_AUX_JSON));
+            tkn.setPlatform(rs.getString(DbTokenConfig.FIELD_PLATFORM));
 
         } catch(Exception e){
             log.error("Exception in loading DbPushMessage from RS", e);
