@@ -564,35 +564,32 @@ public class DbEntityManager {
     public static void persistLastActivity(ActivityRecord ar){
         Connection con = null;
         PreparedStatement pstmt = null;
-        PreparedStatement pstmtDelete = null;
 
-        final String q  = "INSERT INTO ofPhxLastActivity VALUES (?, ?, ?, ?)";
-        final String dq = "DELETE FROM ofPhxLastActivity WHERE ofUser=? AND ofResource=?";
+        final String ins = "INSERT INTO ofPhxLastActivity (ofUser,ofResource,ofActTime,ofLastStatus) " +
+                " VALUES(?,?,?,?) " +
+                " ON DUPLICATE KEY UPDATE ofActTime=?, ofLastStatus=?";
+
         try {
             final JID user = ar.getUser();
-
             con = DbConnectionManager.getConnection();
-            con.setAutoCommit(false);
+//            con.setAutoCommit(false);
 
-            pstmtDelete = con.prepareStatement(dq);
-            pstmtDelete.setString(1, user.toBareJID());
-            pstmtDelete.setString(2, user.getResource());
-            pstmtDelete.executeUpdate();
-
-            pstmt = con.prepareStatement(q);
+            pstmt = con.prepareStatement(ins);
             pstmt.setString   (1, user.asBareJID().toString());
-            pstmt.setString(2, user.getResource());
+            pstmt.setString(   2, user.getResource());
             pstmt.setTimestamp(3, new Timestamp(ar.getLastActiveMilli()));
-            pstmt.setInt(4, ar.getLastState());
+            pstmt.setInt(      4, ar.getLastState());
+
+            pstmt.setTimestamp(5, new Timestamp(ar.getLastActiveMilli()));
+            pstmt.setInt(      6, ar.getLastState());
             pstmt.executeUpdate();
-            con.commit();
+//            con.commit();
         }
         catch (SQLException e) {
             log.info(e.getMessage(), e);
-            rollback(con);
+//            rollback(con);
         }
         finally {
-            DbConnectionManager.closeStatement(pstmtDelete);
             DbConnectionManager.closeConnection(null, pstmt, con);
         }
     }
