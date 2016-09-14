@@ -101,12 +101,12 @@ public class PlatformPushHandler extends IQHandler implements ServerFeaturesProv
 
         try {
             apnSvcDevel = APNS.newService()
-                    .withCert("/home/phonex/keys/apn_devel.p12", "seeGiengoow5")
+                    .withCert("/home/phonex/keys/apn_devel02.p12", "seeGiengoow5")
                     .withSandboxDestination()
                     .build();
 
             apnSvcProd = APNS.newService()
-                    .withCert("/home/phonex/keys/apn_prod.p12", "seeGiengoow5")
+                    .withCert("/home/phonex/keys/apn_prod02.p12", "seeGiengoow5")
                     .withProductionDestination()
                     .build();
 
